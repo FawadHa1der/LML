@@ -9,6 +9,7 @@ public import LeanMachineLearning.Online.Bandit.SumRewards
 public import LeanMachineLearning.SequentialLearning.Deterministic
 public import LeanMachineLearning.MeasureTheory.Constructions.BorelSpace.MeasurableArgMax
 public import Mathlib.Analysis.MeanInequalities
+public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 public import Mathlib.Analysis.Matrix.Order
 public import Mathlib.Data.Real.StarOrdered
@@ -36,12 +37,41 @@ section Algorithm
 
 namespace LinUCB
 
-/-- Feature vectors for finite-dimensional linear bandits. -/
-abbrev Feature (d : ℕ) := Fin d → ℝ
+/-- Feature vectors for finite-dimensional linear bandits.
+
+We use mathlib's Euclidean space model so that LinUCB's feature vectors carry the standard
+inner-product and norm structure of `ℝ^d`. Coordinate formulas remain available through the
+coercion `Feature d → (Fin d → ℝ)`, which is useful for the matrix identities below. -/
+abbrev Feature (d : ℕ) := EuclideanSpace ℝ (Fin d)
+
+/-- View a coordinate matrix-vector product as a Euclidean feature vector. -/
+noncomputable def matrixMulFeature (M : Matrix (Fin d) (Fin d) ℝ) (v : Feature d) :
+    Feature d :=
+  WithLp.toLp 2 (Matrix.mulVec M v)
+
+@[simp]
+lemma matrixMulFeature_apply (M : Matrix (Fin d) (Fin d) ℝ) (v : Feature d) (i : Fin d) :
+    matrixMulFeature M v i = Matrix.mulVec M v i := rfl
+
+lemma mulVec_matrixMulFeature (M N : Matrix (Fin d) (Fin d) ℝ) (v : Feature d) :
+    Matrix.mulVec M (matrixMulFeature N v) = Matrix.mulVec (M * N) v := by
+  ext i
+  simp [matrixMulFeature, Matrix.mulVec_mulVec]
+
+/-- The coordinate dot product agrees with the real Euclidean inner product. -/
+lemma dotProduct_eq_inner (u v : Feature d) :
+    dotProduct u v = inner ℝ u v := by
+  change dotProduct u v = dotProduct v u
+  exact dotProduct_comm u v
+
+/-- The coordinate self-dot-product is the squared Euclidean norm. -/
+lemma dotProduct_self_eq_norm_sq (u : Feature d) :
+    dotProduct u u = ‖u‖ ^ 2 := by
+  rw [dotProduct_eq_inner, real_inner_self_eq_norm_sq]
 
 /-- The standard coordinate direction in `Feature d`. -/
 def coordinateDirection (i : Fin d) : Feature d :=
-  fun j ↦ if j = i then 1 else 0
+  WithLp.toLp 2 fun j ↦ if j = i then 1 else 0
 
 /-- Dot product with a coordinate direction extracts that coordinate. -/
 lemma dotProduct_coordinateDirection (u : Feature d) (i : Fin d) :
@@ -57,12 +87,23 @@ lemma dotProduct_coordinateDirection (u : Feature d) (i : Fin d) :
 /-- Dot product with the negative coordinate direction extracts the negated coordinate. -/
 lemma dotProduct_neg_coordinateDirection (u : Feature d) (i : Fin d) :
     dotProduct (-coordinateDirection i) u = -u i := by
-  rw [neg_dotProduct, dotProduct_coordinateDirection]
+  simp only [dotProduct, coordinateDirection]
+  rw [Finset.sum_eq_single i]
+  · simp
+  · intro j _hj hji
+    simp [hji]
+  · intro hi
+    simp at hi
 
 /-- Squared Euclidean norm of a finite-action feature vector, written as the dot product
 `x_aᵀ x_a`. -/
 def featureSqNorm (x : Fin K → Feature d) (a : Fin K) : ℝ :=
   dotProduct (x a) (x a)
+
+/-- `featureSqNorm` is the squared Euclidean norm of the selected feature vector. -/
+lemma featureSqNorm_eq_norm_sq (x : Fin K → Feature d) (a : Fin K) :
+    featureSqNorm x a = ‖x a‖ ^ 2 := by
+  rw [featureSqNorm, dotProduct_self_eq_norm_sq]
 
 /-- The squared feature norm is nonnegative. -/
 lemma featureSqNorm_nonneg (x : Fin K → Feature d) (a : Fin K) :
@@ -159,7 +200,7 @@ noncomputable def responseVector' (x : Fin K → Feature d)
 /-- History-level regularized least-squares estimate. -/
 noncomputable def thetaHat' (reg : ℝ) (x : Fin K → Feature d)
     (n : ℕ) (h : Iic n → Fin K × ℝ) : Feature d :=
-  Matrix.mulVec (designMatrix' reg x n h)⁻¹ (responseVector' x n h)
+  matrixMulFeature (designMatrix' reg x n h)⁻¹ (responseVector' x n h)
 
 /-- History-level estimated reward of an arm. -/
 noncomputable def estimatedReward' (reg : ℝ) (x : Fin K → Feature d)

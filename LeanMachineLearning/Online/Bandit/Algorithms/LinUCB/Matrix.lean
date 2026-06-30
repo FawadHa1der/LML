@@ -101,6 +101,144 @@ lemma dotProduct_mulVec_le_of_matrix_le {M N : Matrix (Fin d) (Fin d) ℝ}
   exact sub_nonneg.mp h_nonneg
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
+/-- Hermitian matrices induce symmetric coordinate bilinear forms on feature vectors. -/
+lemma dotProduct_mulVec_comm_of_isHermitian {M : Matrix (Fin d) (Fin d) ℝ}
+    (hM : M.IsHermitian) (u v : Feature d) :
+    dotProduct u (M *ᵥ v) = dotProduct v (M *ᵥ u) := by
+  have hMT : Mᵀ = M := by
+    simpa using hM.eq
+  rw [Matrix.dotProduct_mulVec]
+  have huM : u ᵥ* M = M *ᵥ u := by
+    calc
+      u ᵥ* M = u ᵥ* Mᵀ := by rw [hMT]
+      _ = M *ᵥ u := Matrix.vecMul_transpose M u
+  rw [huM, dotProduct_comm]
+
+omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
+/-- Expansion of a Hermitian matrix quadratic form around a difference. -/
+lemma dotProduct_sub_mulVec_sub_eq {M : Matrix (Fin d) (Fin d) ℝ}
+    (hM : M.IsHermitian) (u v : Feature d) :
+    dotProduct (u - v) (M *ᵥ (u - v)) =
+      dotProduct u (M *ᵥ u) - 2 * dotProduct u (M *ᵥ v) +
+        dotProduct v (M *ᵥ v) := by
+  rw [Matrix.mulVec_sub, dotProduct_sub]
+  simp only [WithLp.ofLp_sub]
+  rw [sub_dotProduct, sub_dotProduct]
+  rw [dotProduct_mulVec_comm_of_isHermitian hM v u]
+  ring
+
+omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
+/-- Triangle inequality for the norm induced by a positive-definite matrix. -/
+lemma dotProduct_sub_mulVec_sub_le_sqrt_add_sqrt_sq {M : Matrix (Fin d) (Fin d) ℝ}
+    (hM : M.PosDef) (u v : Feature d) :
+    dotProduct (u - v) (M *ᵥ (u - v)) ≤
+      (√(dotProduct u (M *ᵥ u)) + √(dotProduct v (M *ᵥ v))) ^ 2 := by
+  let uf : Fin d → ℝ := u
+  let vf : Fin d → ℝ := v
+  letI : SeminormedAddCommGroup (Fin d → ℝ) :=
+    Matrix.toSeminormedAddCommGroup M hM.posSemidef
+  letI : InnerProductSpace ℝ (Fin d → ℝ) :=
+    Matrix.toInnerProductSpace M hM.posSemidef
+  have hq_sub :
+      dotProduct (u - v) (M *ᵥ (u - v)) = inner ℝ (uf - vf) (uf - vf) := by
+    change (u - v).ofLp ⬝ᵥ M *ᵥ (u - v).ofLp = inner ℝ (uf - vf) (uf - vf)
+    simp only [WithLp.ofLp_sub]
+    change (uf - vf) ⬝ᵥ M *ᵥ (uf - vf) = (M *ᵥ (uf - vf)) ⬝ᵥ (uf - vf)
+    rw [dotProduct_comm]
+  have hq_u : dotProduct u (M *ᵥ u) = inner ℝ uf uf := by
+    change u.ofLp ⬝ᵥ M *ᵥ u.ofLp = inner ℝ uf uf
+    change uf ⬝ᵥ M *ᵥ uf = (M *ᵥ uf) ⬝ᵥ uf
+    rw [dotProduct_comm]
+  have hq_v : dotProduct v (M *ᵥ v) = inner ℝ vf vf := by
+    change v.ofLp ⬝ᵥ M *ᵥ v.ofLp = inner ℝ vf vf
+    change vf ⬝ᵥ M *ᵥ vf = (M *ᵥ vf) ⬝ᵥ vf
+    rw [dotProduct_comm]
+  have h_cross_sq := real_inner_mul_inner_self_le uf vf
+  have h_cross_sq_pow :
+      (inner ℝ uf vf) ^ 2 ≤ inner ℝ uf uf * inner ℝ vf vf := by
+    simpa [pow_two] using h_cross_sq
+  have h_cross_abs :
+      |inner ℝ uf vf| ≤ √(inner ℝ uf uf * inner ℝ vf vf) :=
+    Real.abs_le_sqrt h_cross_sq_pow
+  have h_sqrt_mul :
+      √(inner ℝ uf uf * inner ℝ vf vf) =
+        √(inner ℝ uf uf) * √(inner ℝ vf vf) :=
+    Real.sqrt_mul (real_inner_self_nonneg (x := uf)) (inner ℝ vf vf)
+  have h_sqrt_u_mul :
+      √(inner ℝ uf uf) * √(inner ℝ uf uf) = inner ℝ uf uf := by
+    rw [← sq, Real.sq_sqrt (real_inner_self_nonneg (x := uf))]
+  have h_sqrt_v_mul :
+      √(inner ℝ vf vf) * √(inner ℝ vf vf) = inner ℝ vf vf := by
+    rw [← sq, Real.sq_sqrt (real_inner_self_nonneg (x := vf))]
+  have h_neg_cross :
+      - inner ℝ uf vf ≤ √(inner ℝ uf uf) * √(inner ℝ vf vf) := by
+    exact (neg_le_abs (inner ℝ uf vf)).trans (h_cross_abs.trans_eq h_sqrt_mul)
+  have h_cross_comm : inner ℝ vf uf = inner ℝ uf vf := by
+    rw [real_inner_comm]
+  calc
+    dotProduct (u - v) (M *ᵥ (u - v))
+        = inner ℝ (uf - vf) (uf - vf) := hq_sub
+    _ = inner ℝ uf uf - inner ℝ uf vf - inner ℝ vf uf + inner ℝ vf vf := by
+          rw [inner_sub_sub_self]
+    _ = inner ℝ uf uf + inner ℝ vf vf - 2 * inner ℝ uf vf := by
+          rw [h_cross_comm]
+          ring
+    _ ≤ inner ℝ uf uf + inner ℝ vf vf +
+          2 * (√(inner ℝ uf uf) * √(inner ℝ vf vf)) := by
+          nlinarith [h_neg_cross]
+    _ = (√(inner ℝ uf uf) + √(inner ℝ vf vf)) ^ 2 := by
+          nlinarith [h_sqrt_u_mul, h_sqrt_v_mul]
+    _ = (√(dotProduct u (M *ᵥ u)) + √(dotProduct v (M *ᵥ v))) ^ 2 := by
+          rw [hq_u, hq_v]
+
+omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
+/-- Matrix Cauchy-Schwarz with an inverse-design factor. -/
+lemma abs_dotProduct_le_sqrt_mul_sqrt_inv_mulVec {M : Matrix (Fin d) (Fin d) ℝ}
+    (hM : M.PosDef) (hMdet : IsUnit M.det) (u v : Feature d) :
+    |dotProduct u v| ≤
+      √(dotProduct u (M *ᵥ u)) * √(dotProduct v (M⁻¹ *ᵥ v)) := by
+  let uf : Fin d → ℝ := u
+  let y : Fin d → ℝ := M⁻¹ *ᵥ v
+  letI : SeminormedAddCommGroup (Fin d → ℝ) :=
+    Matrix.toSeminormedAddCommGroup M hM.posSemidef
+  letI : InnerProductSpace ℝ (Fin d → ℝ) :=
+    Matrix.toInnerProductSpace M hM.posSemidef
+  have hMy : M *ᵥ y = v := by
+    simp [y, Matrix.mulVec_mulVec, Matrix.mul_nonsing_inv _ hMdet]
+  have h_inner_uy :
+      inner ℝ uf y = dotProduct u v := by
+    change (M *ᵥ y) ⬝ᵥ uf = dotProduct u v
+    rw [hMy, dotProduct_comm]
+  have h_inner_uu :
+      inner ℝ uf uf = dotProduct u (M *ᵥ u) := by
+    change (M *ᵥ uf) ⬝ᵥ uf = dotProduct u (M *ᵥ u)
+    rw [dotProduct_comm]
+  have h_inner_yy :
+      inner ℝ y y = dotProduct v (M⁻¹ *ᵥ v) := by
+    change (M *ᵥ y) ⬝ᵥ y = dotProduct v (M⁻¹ *ᵥ v)
+    rw [hMy]
+  have hsq := real_inner_mul_inner_self_le uf y
+  rw [h_inner_uy, h_inner_uu, h_inner_yy] at hsq
+  have hsq' :
+      dotProduct u v ^ 2 ≤ dotProduct u (M *ᵥ u) * dotProduct v (M⁻¹ *ᵥ v) := by
+    simpa [pow_two] using hsq
+  have h_abs := Real.abs_le_sqrt hsq'
+  calc
+    |dotProduct u v|
+        ≤ √(dotProduct u (M *ᵥ u) * dotProduct v (M⁻¹ *ᵥ v)) := h_abs
+    _ = √(dotProduct u (M *ᵥ u)) * √(dotProduct v (M⁻¹ *ᵥ v)) := by
+        rw [Real.sqrt_mul (by simpa using hM.posSemidef.dotProduct_mulVec_nonneg u)]
+
+omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
+/-- Multiplying a wrapped inverse matrix-vector product by the original nonsingular matrix recovers
+the original feature vector in coordinates. -/
+lemma mulVec_matrixMulFeature_nonsing_inv (M : Matrix (Fin d) (Fin d) ℝ)
+    (hMdet : IsUnit M.det) (v : Feature d) :
+    Matrix.mulVec M (matrixMulFeature M⁻¹ v) = v := by
+  rw [mulVec_matrixMulFeature, Matrix.mul_nonsing_inv _ hMdet]
+  simp
+
+omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
 /-- The inverse of the regularized identity is the reciprocal-scaled identity. -/
 lemma reg_smul_one_inv (hreg : reg ≠ 0) :
     (reg • (1 : Matrix (Fin d) (Fin d) ℝ))⁻¹ =
@@ -282,14 +420,14 @@ lemma responseVector_succ (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
 /-- The process-level regularized least-squares estimate. -/
 noncomputable def thetaHat (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
     (reg : ℝ) (x : Fin K → Feature d) (n : ℕ) (ω : Ω) : Feature d :=
-  Matrix.mulVec (designMatrix A reg x n ω)⁻¹ (responseVector A R x n ω)
+  matrixMulFeature (designMatrix A reg x n ω)⁻¹ (responseVector A R x n ω)
 
 /-- The initial least-squares estimate is zero because no reward-feature observations have been
 included yet. -/
 lemma thetaHat_zero (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
     (reg : ℝ) (x : Fin K → Feature d) (ω : Ω) :
     thetaHat A R reg x 0 ω = 0 := by
-  simp [thetaHat, responseVector_zero]
+  simp [thetaHat, responseVector_zero, matrixMulFeature]
 
 /-- The process-level estimated linear reward. -/
 noncomputable def estimatedReward (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
@@ -900,22 +1038,22 @@ lemma unitary_star_mulVec_measurePreserving
     (U : Matrix.unitaryGroup (Fin d) ℝ) :
     MeasurePreserving
     (fun lambda : Feature d =>
-        star (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda)
+        matrixMulFeature (star (U : Matrix (Fin d) (Fin d) ℝ)) lambda)
       volume volume := by
   let L : Feature d →ₗ[ℝ] Feature d :=
-    Matrix.toLin' (star (U : Matrix (Fin d) (Fin d) ℝ))
+    Matrix.toLpLin 2 2 (star (U : Matrix (Fin d) (Fin d) ℝ))
   have h_abs_det :
       |(star (U : Matrix (Fin d) (Fin d) ℝ)).det| = 1 :=
     abs_det_star_unitary U
   have hdet_ne : LinearMap.det L ≠ 0 := by
-    simpa [L, LinearMap.det_toLin'] using
+    simpa [L, LinearMap.det_toLpLin] using
       (Matrix.UnitaryGroup.det_isUnit (star U)).ne_zero
   refine ⟨L.continuous_of_finiteDimensional.measurable, ?_⟩
   change Measure.map L volume = volume
   rw [Measure.map_linearMap_addHaar_eq_smul_addHaar (μ := volume) hdet_ne]
   have hscale : ENNReal.ofReal |(LinearMap.det L)⁻¹| = 1 := by
     dsimp [L]
-    rw [LinearMap.det_toLin', abs_inv, h_abs_det]
+    rw [LinearMap.det_toLpLin, abs_inv, h_abs_det]
     norm_num
   rw [hscale, one_smul]
 
@@ -924,28 +1062,26 @@ omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
 feature coordinates. -/
 noncomputable def unitaryStarMulVecMeasurableEquiv
     (U : Matrix.unitaryGroup (Fin d) ℝ) : Feature d ≃ᵐ Feature d where
-  toFun lambda := star (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda
-  invFun lambda := (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda
+  toFun lambda := matrixMulFeature (star (U : Matrix (Fin d) (Fin d) ℝ)) lambda
+  invFun lambda := matrixMulFeature (U : Matrix (Fin d) (Fin d) ℝ) lambda
   left_inv lambda := by
-    change (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ
-      (star (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda) = lambda
     have hunit :
         (U : Matrix (Fin d) (Fin d) ℝ) *
           star (U : Matrix (Fin d) (Fin d) ℝ) = 1 := by
       exact Unitary.coe_mul_star_self U
-    rw [Matrix.mulVec_mulVec, hunit, Matrix.one_mulVec]
+    ext i
+    simp [matrixMulFeature, Matrix.mulVec_mulVec, hunit]
   right_inv lambda := by
-    change star (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ
-      ((U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda) = lambda
     have hunit :
         star (U : Matrix (Fin d) (Fin d) ℝ) *
           (U : Matrix (Fin d) (Fin d) ℝ) = 1 := by
       exact Unitary.coe_star_mul_self U
-    rw [Matrix.mulVec_mulVec, hunit, Matrix.one_mulVec]
+    ext i
+    simp [matrixMulFeature, Matrix.mulVec_mulVec, hunit]
   measurable_toFun := (unitary_star_mulVec_measurePreserving U).measurable
   measurable_invFun := by
     change Measurable fun lambda : Feature d =>
-      (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda
+      matrixMulFeature (U : Matrix (Fin d) (Fin d) ℝ) lambda
     simpa using (unitary_star_mulVec_measurePreserving (star U)).measurable
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
@@ -954,7 +1090,8 @@ lemma unitaryStarMulVecMeasurableEquiv_measurePreserving
     (U : Matrix.unitaryGroup (Fin d) ℝ) :
     MeasurePreserving (unitaryStarMulVecMeasurableEquiv U) volume volume := by
   change MeasurePreserving
-    (fun lambda : Feature d => star (U : Matrix (Fin d) (Fin d) ℝ) *ᵥ lambda)
+    (fun lambda : Feature d =>
+      matrixMulFeature (star (U : Matrix (Fin d) (Fin d) ℝ)) lambda)
     volume volume
   exact unitary_star_mulVec_measurePreserving U
 

@@ -259,6 +259,7 @@ lemma LinUCBSelfNormalizedConfidenceEvent.of_parameterPrediction
           = dotProduct (thetaHat A R reg x t ω) (x a) - dotProduct θ (x a) := by
               rw [estimatedReward, h_linear a]
       _ = dotProduct (thetaHat A R reg x t ω - θ) (x a) := by
+              simp only [WithLp.ofLp_sub]
               rw [sub_dotProduct]
   rw [h_error]
   simpa [sub_dotProduct] using h_param_t
@@ -323,6 +324,7 @@ lemma LinUCBSelfNormalizedConfidenceEventUpTo.of_parameterEllipsoid
           = dotProduct (thetaHat A R reg x t ω) (x a) - dotProduct θ (x a) := by
               rw [estimatedReward, h_linear a]
       _ = dotProduct (thetaHat A R reg x t ω - θ) (x a) := by
+              simp only [WithLp.ofLp_sub]
               rw [sub_dotProduct]
   rw [h_error]
   calc
