@@ -54,14 +54,11 @@ lemma mulVec_matrixMulFeature (M N : Matrix (Fin d) (Fin d) ℝ) (v : Feature d)
   ext i
   simp [matrixMulFeature, Matrix.mulVec_mulVec]
 
-/-- Squared Euclidean norm of an arm feature vector. -/
-def featureSqNorm (x : Fin K → Feature d) (a : Fin K) : ℝ :=
-  dotProduct (x a) (x a)
-
-lemma featureSqNorm_nonneg (x : Fin K → Feature d) (a : Fin K) :
-    0 ≤ featureSqNorm x a := by
-  rw [featureSqNorm, dotProduct]
-  exact sum_nonneg fun i _ ↦ mul_self_nonneg (x a i)
+/-- The coordinate dot product of a feature vector with itself is its squared Euclidean norm. -/
+lemma dotProduct_self_eq_norm_sq (u : Feature d) :
+    dotProduct u u = ‖u‖ ^ 2 := by
+  rw [← real_inner_self_eq_norm_sq]
+  simp [dotProduct, inner]
 
 /-- The squared Euclidean norm of an arbitrary feature vector is nonnegative. -/
 lemma dotProduct_self_nonneg (u : Feature d) :
@@ -97,7 +94,7 @@ lemma abs_dotProduct_le_sqrt_mul_sqrt_of_sq_norm_le
 This is the finite-action version of the textbook assumption `‖x‖₂ ≤ L`, written here in squared
 form as `‖x_a‖₂² ≤ L2` for every action. -/
 def FeatureSqNormBound (x : Fin K → Feature d) (L2 : ℝ) : Prop :=
-  ∀ a, featureSqNorm x a ≤ L2
+  ∀ a, ‖x a‖ ^ 2 ≤ L2
 
 /-- A uniform squared feature-norm bound is nonnegative whenever the finite action set is
 nonempty. -/
@@ -105,7 +102,7 @@ lemma FeatureSqNormBound.nonneg [Nonempty (Fin K)]
     {x : Fin K → Feature d} {L2 : ℝ} (hL2 : FeatureSqNormBound x L2) :
     0 ≤ L2 := by
   classical
-  exact (featureSqNorm_nonneg x (Classical.arbitrary (Fin K))).trans
+  exact (sq_nonneg ‖x (Classical.arbitrary (Fin K))‖).trans
     (hL2 (Classical.arbitrary (Fin K)))
 
 lemma exists_abs_dotProduct_feature_bound (x : Fin K → Feature d) (v : Feature d) :

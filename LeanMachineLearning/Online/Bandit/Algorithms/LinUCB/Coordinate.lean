@@ -144,11 +144,11 @@ lemma meanRewardBound_neg_one_one_of_linear_sq_norm_bounds
     MeanRewardBound (K := K) ν (-1) 1 := by
   intro a
   have hS2_nonneg : 0 ≤ S2 := (dotProduct_self_nonneg θ).trans hθ
-  have hL2_nonneg : 0 ≤ L2 := (featureSqNorm_nonneg x a).trans (hL2 a)
+  have hL2_nonneg : 0 ≤ L2 := (sq_nonneg ‖x a‖).trans (hL2 a)
   have hdot :
       |dotProduct θ (x a)| ≤ √S2 * √L2 :=
     abs_dotProduct_le_sqrt_mul_sqrt_of_sq_norm_le (u := θ) (v := x a)
-      (U := S2) (V := L2) hθ (by simpa [featureSqNorm] using hL2 a)
+      (U := S2) (V := L2) hθ (by simpa [dotProduct_self_eq_norm_sq] using hL2 a)
   have hsqrt_prod_le : √S2 * √L2 ≤ 1 := by
     have hprod_le : S2 * L2 ≤ 1 := by
       nlinarith [hLS_le_one]

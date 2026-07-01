@@ -323,8 +323,8 @@ feature norms. -/
 lemma designTrace_eq_reg_mul_dim_add_sum_featureSqNorm
     (reg : ℝ) (x : Fin K → Feature d) (n : ℕ) (ω : Ω) :
     designTrace A reg x n ω =
-      reg * (d : ℝ) + ∑ t ∈ range n, featureSqNorm x (A t ω) := by
-  simp [designTrace, designMatrix, featureSqNorm, Matrix.trace_vecMulVec]
+      reg * (d : ℝ) + ∑ t ∈ range n, ‖x (A t ω)‖ ^ 2 := by
+  simp [designTrace, designMatrix, Matrix.trace_vecMulVec, dotProduct_self_eq_norm_sq]
 
 /-- With nonnegative regularization, the design trace is nonnegative. -/
 lemma designTrace_nonneg (hreg_nonneg : 0 ≤ reg) :
@@ -332,18 +332,18 @@ lemma designTrace_nonneg (hreg_nonneg : 0 ≤ reg) :
   rw [designTrace_eq_reg_mul_dim_add_sum_featureSqNorm]
   exact add_nonneg
     (mul_nonneg hreg_nonneg (Nat.cast_nonneg d))
-    (sum_nonneg fun t _ ↦ featureSqNorm_nonneg x (A t ω))
+    (sum_nonneg fun t _ ↦ sq_nonneg ‖x (A t ω)‖)
 
 /-- If every selected feature vector has squared norm at most `L2`, then the trace of the design
 matrix is at most `reg * d + n * L2`. -/
 lemma designTrace_le_reg_mul_dim_add_nat_mul_featureSqNorm_bound
     (L2 : ℝ)
-    (hL2 : ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2) :
+    (hL2 : ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2) :
     designTrace A reg x n ω ≤ reg * (d : ℝ) + (n : ℝ) * L2 := by
   rw [designTrace_eq_reg_mul_dim_add_sum_featureSqNorm]
   gcongr
   calc
-    (∑ t ∈ range n, featureSqNorm x (A t ω)) ≤ ∑ _t ∈ range n, L2 := by
+    (∑ t ∈ range n, ‖x (A t ω)‖ ^ 2) ≤ ∑ _t ∈ range n, L2 := by
       exact sum_le_sum fun t ht ↦ hL2 t ht
     _ = (n : ℝ) * L2 := by
       simp [nsmul_eq_mul]
@@ -353,7 +353,7 @@ omit [IsProbabilityMeasure P] in
 budget `reg * d + n * L2`. -/
 lemma designTrace_ae_le_reg_mul_dim_add_nat_mul_featureSqNorm_bound
     (L2 : ℝ)
-    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2) :
+    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2) :
     ∀ᵐ ω ∂P, designTrace A reg x n ω ≤ reg * (d : ℝ) + (n : ℝ) * L2 := by
   filter_upwards [hL2] with ω hL2ω
   exact designTrace_le_reg_mul_dim_add_nat_mul_featureSqNorm_bound (A := A) (reg := reg)
@@ -364,7 +364,7 @@ omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
 finite horizon. -/
 lemma featureSqNorm_ae_le_of_featureSqNormBound
     (L2 : ℝ) (hL2 : FeatureSqNormBound x L2) :
-    ∀ᵐ ω ∂P, ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2 :=
+    ∀ᵐ ω ∂P, ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2 :=
   Filter.Eventually.of_forall fun ω t _ht ↦ hL2 (A t ω)
 
 /-- The process-level reward-feature vector built from history up to time `n` excluded. -/
@@ -945,7 +945,7 @@ omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
 `det(V_n) ≤ ((reg * d + n * L2) / d) ^ d`. -/
 lemma designDetRatio_ae_le_trace_budget_of_featureSqNorm_bound_of_designDet_le
     (L2 : ℝ) (hreg_pos : 0 < reg) (hd : d ≠ 0)
-    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2)
+    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2)
     (hdet_of_trace : ∀ ω,
       designTrace A reg x n ω ≤ reg * (d : ℝ) + (n : ℝ) * L2 →
         designDet A reg x n ω ≤
@@ -1050,7 +1050,7 @@ omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
 determinant-ratio bound used by the elliptical-potential chain. -/
 lemma designDetRatio_ae_le_trace_budget_of_featureSqNorm_bound_of_matrix_det_trace_bound
     (L2 : ℝ) (hreg_pos : 0 < reg) (hd : d ≠ 0)
-    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2)
+    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2)
     (hdet_trace : MatrixDetLeTraceAveragePow d) :
     ∀ᵐ ω ∂P,
       designDetRatio A reg x n ω ≤
@@ -1463,7 +1463,7 @@ quadratic-width sum directly and does not assume the individual quadratic forms 
 lemma cappedQuadraticWidthSum_ae_le_featureSqNorm_budget_of_matrix_det_trace_bound
     (hreg_pos : 0 < reg) (hd : d ≠ 0)
     (L2 : ℝ)
-    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → featureSqNorm x (A t ω) ≤ L2)
+    (hL2 : ∀ᵐ ω ∂P, ∀ t, t ∈ range n → ‖x (A t ω)‖ ^ 2 ≤ L2)
     (hdet_trace : MatrixDetLeTraceAveragePow d) :
     ∀ᵐ ω ∂P,
       cappedQuadraticWidthSum A reg x n ω ≤
