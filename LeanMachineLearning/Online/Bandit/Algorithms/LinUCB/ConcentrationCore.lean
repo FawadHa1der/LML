@@ -62,16 +62,7 @@ section AlgorithmBehavior
 
 
 
-omit [IsMarkovKernel ν] in
-/-- Project the arm-wise reward-noise subgaussian assumption to a single arm. -/
-lemma RewardNoiseSubgaussian.apply
-    {σ2 : ℝ≥0}
-    (hν : RewardNoiseSubgaussian (K := K) ν σ2) (a : Fin K) :
-    HasSubgaussianMGF (fun r ↦ r - (ν a)[id]) σ2 (ν a) :=
-  hν a
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- A subgaussian MGF bound remains true when the variance proxy is enlarged. -/
+omit [IsProbabilityMeasure P] in
 lemma hasSubgaussianMGF_mono_varianceProxy
     {X : Ω → ℝ} {c c' : ℝ≥0}
     (hX : HasSubgaussianMGF X c P) (hc : c ≤ c') :
@@ -111,23 +102,7 @@ lemma measurable_rewardMean (ν : Kernel (Fin K) ℝ) :
     Measurable fun a : Fin K ↦ (ν a)[id] :=
   measurable_of_countable _
 
-omit [IsMarkovKernel ν] in
-/-- Deterministic centering map sending `(a, r)` to the reward noise `r - μ(a)`. -/
-noncomputable def centerReward (ν : Kernel (Fin K) ℝ) (p : Fin K × ℝ) : ℝ :=
-  p.2 - (ν p.1)[id]
-
-omit [IsMarkovKernel ν] in
-/-- The centered-reward map is measurable. -/
-lemma measurable_centerReward (ν : Kernel (Fin K) ℝ) :
-    Measurable (centerReward ν) :=
-  measurable_snd.sub ((measurable_rewardMean ν).comp measurable_fst)
-
-omit [IsMarkovKernel ν] in
-/-- Conditional kernel of centered reward noise given the selected action.
-
-For action `a`, this is the reward law `ν a` pushed forward by `r ↦ r - μ(a)`. It is the
-Markov-kernel form of the scalar martingale noise process used by the future self-normalized
-concentration theorem. -/
+/-- Kernel of centered reward noise for each action. -/
 noncomputable def rewardNoiseKernel (ν : Kernel (Fin K) ℝ) : Kernel (Fin K) ℝ :=
   ⟨fun a ↦ (ν a).map (fun r ↦ r - (ν a)[id]), measurable_of_countable _⟩
 
@@ -162,40 +137,7 @@ lemma RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian
   exact (HasSubgaussianMGF.id_map_iff
     ((measurable_id.sub measurable_const).aemeasurable)).mpr (hν a)
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Arm-wise subgaussianity of the centered-noise kernel packages into Mathlib's kernel-level
-subgaussian MGF predicate over any finite action law. -/
-lemma RewardNoiseKernelSubgaussian.hasKernelSubgaussian
-    {σ2 : ℝ≥0}
-    (hν : RewardNoiseKernelSubgaussian (K := K) ν σ2)
-    (μ : Measure (Fin K)) [IsFiniteMeasure μ] :
-    Kernel.HasSubgaussianMGF id σ2 (rewardNoiseKernel ν) μ := by
-  constructor
-  · intro t
-    have hf :
-        AEStronglyMeasurable (fun η : ℝ ↦ Real.exp (t * η)) ((rewardNoiseKernel ν) ∘ₘ μ) := by
-      fun_prop
-    change Integrable (fun η : ℝ ↦ Real.exp (t * η)) ((rewardNoiseKernel ν) ∘ₘ μ)
-    rw [Measure.integrable_comp_iff hf]
-    constructor
-    · exact Filter.Eventually.of_forall fun a ↦ (hν a).integrable_exp_mul t
-    · have h_meas :
-          AEStronglyMeasurable
-            (fun a : Fin K ↦ ∫ η, ‖Real.exp (t * η)‖ ∂rewardNoiseKernel ν a) μ := by
-        exact (measurable_of_countable _).aestronglyMeasurable
-      refine integrable_of_le_of_le h_meas ?_ ?_ (integrable_const 0)
-        (integrable_const (Real.exp (σ2 * t ^ 2 / 2)))
-      · exact Filter.Eventually.of_forall fun a ↦ integral_nonneg fun η ↦ norm_nonneg _
-      · refine Filter.Eventually.of_forall fun a ↦ ?_
-        have h_int := (hν a).integrable_exp_mul t
-        have h_mgf := (hν a).mgf_le t
-        simpa [mgf, Real.norm_of_nonneg (Real.exp_nonneg _)] using h_mgf
-  · exact Filter.Eventually.of_forall fun a t ↦ (hν a).mgf_le t
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The history-action version of `RewardNoiseKernelSubgaussian.hasKernelSubgaussian`: adding an
-ignored history coordinate to the conditioning variable preserves the kernel-level subgaussian MGF
-property. -/
+omit [IsMarkovKernel ν] in
 lemma RewardNoiseKernelSubgaussian.hasKernelSubgaussian_prodMkLeft
     {γ : Type*} [MeasurableSpace γ] {σ2 : ℝ≥0}
     (hν : RewardNoiseKernelSubgaussian (K := K) ν σ2)
@@ -230,21 +172,7 @@ lemma RewardNoiseKernelSubgaussian.hasKernelSubgaussian_prodMkLeft
   · exact Filter.Eventually.of_forall fun z t ↦ by
       simpa [Kernel.prodMkLeft_apply] using (hν z.2).mgf_le t
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The UCB-style arm-wise reward-noise assumption gives the kernel-level subgaussian MGF package
-for `rewardNoiseKernel`. -/
-lemma RewardNoiseSubgaussian.hasKernelSubgaussian
-    {σ2 : ℝ≥0}
-    (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (μ : Measure (Fin K)) [IsFiniteMeasure μ] :
-    Kernel.HasSubgaussianMGF id σ2 (rewardNoiseKernel ν) μ :=
-  RewardNoiseKernelSubgaussian.hasKernelSubgaussian
-    (ν := ν) (σ2 := σ2)
-    (RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian (K := K) (ν := ν) hν) μ
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The UCB-style arm-wise reward-noise assumption gives the kernel-level subgaussian MGF package
-after adding an ignored history coordinate. -/
+omit [IsMarkovKernel ν] in
 lemma RewardNoiseSubgaussian.hasKernelSubgaussian_prodMkLeft
     {γ : Type*} [MeasurableSpace γ] {σ2 : ℝ≥0}
     (hν : RewardNoiseSubgaussian (K := K) ν σ2)
@@ -254,40 +182,6 @@ lemma RewardNoiseSubgaussian.hasKernelSubgaussian_prodMkLeft
     (ν := ν) (σ2 := σ2)
     (RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian (K := K) (ν := ν) hν) μ
 
-omit [IsProbabilityMeasure P] in
-/-- Mapping an action-reward joint law by reward centering is the same as pairing the action law
-with `rewardNoiseKernel`. -/
-lemma compProd_map_centerReward_eq_compProd_rewardNoiseKernel
-    (μ : Measure (Fin K)) [SFinite μ] :
-    (μ ⊗ₘ ν).map (fun p : Fin K × ℝ ↦ (p.1, centerReward ν p)) =
-      μ ⊗ₘ rewardNoiseKernel ν := by
-  ext s hs
-  let g : Fin K × ℝ → Fin K × ℝ := fun p ↦ (p.1, centerReward ν p)
-  have hg : Measurable g := by
-    dsimp [g]
-    exact Measurable.prodMk measurable_fst (measurable_centerReward ν)
-  change (Measure.map g (μ ⊗ₘ ν)) s = (μ ⊗ₘ rewardNoiseKernel ν) s
-  rw [Measure.map_apply hg hs, Measure.compProd_apply (hg hs), Measure.compProd_apply hs]
-  refine lintegral_congr_ae ?_
-  refine Filter.Eventually.of_forall fun a ↦ ?_
-  change (ν a) (Prod.mk a ⁻¹' (g ⁻¹' s)) =
-    (rewardNoiseKernel ν a) (Prod.mk a ⁻¹' s)
-  rw [rewardNoiseKernel_apply (ν := ν) a]
-  let f : ℝ → ℝ := fun r ↦ r - (ν a)[id]
-  have hf : Measurable f := by
-    dsimp [f]
-    exact measurable_id.sub measurable_const
-  change (ν a) (Prod.mk a ⁻¹' (g ⁻¹' s)) = (Measure.map f (ν a)) (Prod.mk a ⁻¹' s)
-  rw [Measure.map_apply hf (measurable_prodMk_left hs)]
-  congr 1
-
-omit [IsProbabilityMeasure P] in
-/-- Mapping a history/action-reward joint law by reward centering is the same as pairing the
-history/action law with `rewardNoiseKernel`, ignoring the history coordinate.
-
-This is the history-action version of `compProd_map_centerReward_eq_compProd_rewardNoiseKernel`.
-It is the measure identity used to show that reward noise is conditionally centered-subgaussian
-given the past history and the current selected action. -/
 lemma compProd_map_centerReward_historyAction_eq_compProd_rewardNoiseKernel_prodMkLeft
     {γ : Type*} [MeasurableSpace γ]
     (μ : Measure (γ × Fin K)) [SFinite μ] :
@@ -319,50 +213,7 @@ lemma compProd_map_centerReward_historyAction_eq_compProd_rewardNoiseKernel_prod
   congr 1
 
 /-- In a stationary bandit environment, the scalar centered reward noise at time `t`, conditioned
-on the selected action, has conditional kernel `rewardNoiseKernel ν`.
-
-This is the formal bridge from the repository's Markov-kernel environment model to the martingale
-noise process used in the textbook LinUCB self-normalized concentration proof. -/
-lemma hasCondDistrib_rewardNoise_action {alg : Algorithm (Fin K) ℝ}
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P) (t : ℕ) :
-    HasCondDistrib (rewardNoise A R ν t) (A t) (rewardNoiseKernel ν) P := by
-  have hR : HasCondDistrib (R t) (A t) ν P :=
-    h.hasCondDistrib_feedback_stationaryEnv t
-  have h_noise_meas :
-      Measurable fun ω ↦ R t ω - (ν (A t ω))[id] :=
-    (h.measurable_feedback t).sub ((measurable_rewardMean ν).comp (h.measurable_action t))
-  have h_noise_ae : AEMeasurable (rewardNoise A R ν t) P := by
-    simpa [rewardNoise] using h_noise_meas.aemeasurable
-  have h_pair_ae : AEMeasurable (fun ω ↦ (A t ω, R t ω)) P :=
-    (Measurable.prodMk (h.measurable_action t) (h.measurable_feedback t)).aemeasurable
-  have h_center_ae :
-      AEMeasurable (fun p : Fin K × ℝ ↦ (p.1, centerReward ν p))
-        (P.map fun ω ↦ (A t ω, R t ω)) :=
-    (Measurable.prodMk measurable_fst (measurable_centerReward ν)).aemeasurable
-  refine ⟨?_, hR.aemeasurable_snd, ?_⟩
-  · exact h_noise_ae
-  · rw [condDistrib_ae_eq_iff_measure_eq_compProd _ h_noise_ae]
-    have h_eq := hR.condDistrib_eq
-    rw [condDistrib_ae_eq_iff_measure_eq_compProd _ hR.aemeasurable_fst] at h_eq
-    calc P.map (fun ω ↦ (A t ω, rewardNoise A R ν t ω))
-      _ = (P.map (fun ω ↦ (A t ω, R t ω))).map
-          (fun p : Fin K × ℝ ↦ (p.1, centerReward ν p)) := by
-            rw [AEMeasurable.map_map_of_aemeasurable h_center_ae h_pair_ae]
-            · rfl
-      _ = (P.map (A t) ⊗ₘ ν).map
-          (fun p : Fin K × ℝ ↦ (p.1, centerReward ν p)) := by
-            rw [h_eq]
-      _ = P.map (A t) ⊗ₘ rewardNoiseKernel ν :=
-            compProd_map_centerReward_eq_compProd_rewardNoiseKernel (ν := ν) (μ := P.map (A t))
-
-/-- In a stationary bandit environment, the scalar centered reward noise at a positive time,
-conditioned on the previous history and the selected action, has conditional kernel
-`rewardNoiseKernel ν`, ignoring the history coordinate.
-
-This is the martingale-noise conditional-law statement needed before applying a future
-self-normalized concentration theorem: after the algorithm chooses `A t` from the past, the
-remaining centered reward noise has the centered law of that selected arm. -/
+on the selected action, has conditional kernel `rewardNoiseKernel ν`. -/
 lemma hasCondDistrib_rewardNoise_history_action {alg : Algorithm (Fin K) ℝ}
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P) {t : ℕ} (ht : t ≠ 0) :
@@ -454,38 +305,9 @@ lemma RewardNoiseKernelSubgaussian.prodMkLeft_constMul
   intro z
   simpa only [id_eq] using (hν.prodMkLeft z).const_mul (q z)
 
-/-- Under the UCB-style arm-wise reward-noise assumption, the conditional law of the positive-time
-LinUCB reward noise given history and selected action is subgaussian.
-
-This is the scalar probabilistic input that a future vector self-normalized concentration theorem
-should consume for predictable projections of `η_t x_{A_t}`. -/
-lemma rewardNoise_condDistrib_history_action_subgaussian {alg : Algorithm (Fin K) ℝ}
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    {t : ℕ} (ht : t ≠ 0) :
-    ∀ᵐ z ∂P.map (fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω)),
-      HasSubgaussianMGF id σ2
-        (condDistrib (rewardNoise A R ν t)
-          (fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω)) P z) := by
-  have h_cond := hasCondDistrib_rewardNoise_history_action
-    (A := A) (R := R) (ν := ν) h ht
-  have h_kernel :
-      ∀ z : (Iic (t - 1) → Fin K × ℝ) × Fin K,
-        HasSubgaussianMGF id σ2
-          ((rewardNoiseKernel ν).prodMkLeft (Iic (t - 1) → Fin K × ℝ) z) :=
-    (RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian
-      (K := K) (ν := ν) hν).prodMkLeft
-  filter_upwards [h_cond.condDistrib_eq] with z hz
-  rw [hz]
-  exact h_kernel z
-
 omit [IsMarkovKernel ν] in
-/-- The centered reward-noise kernel, viewed over the realized history/action conditioning law,
-satisfies Mathlib's kernel-level subgaussian MGF predicate.
-
-This packages the previous pointwise conditional-law statement with the global exponential
-integrability required by `Kernel.HasSubgaussianMGF`. -/
+/-- Under the arm-wise reward-noise assumption, the conditional law of the positive-time LinUCB
+reward noise given history and selected action is subgaussian. -/
 lemma rewardNoise_history_action_kernelSubgaussian
     {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2) (t : ℕ) :
     Kernel.HasSubgaussianMGF id σ2
@@ -559,64 +381,7 @@ lemma rewardNoise_integrable_exp_mul_history_action {alg : Algorithm (Fin K) ℝ
   simpa [Function.comp_def] using
     (integrable_map_measure (by fun_prop) hY_ae).mp h_int
 
-/-- Conditional MGF bound for the realized positive-time LinUCB reward noise.
-
-Given the previous history and the selected action at time `t`, the conditional expectation of
-`exp (u * η_t)` is bounded by the arm-wise subgaussian MGF bound
-`exp (σ2 * u^2 / 2)`, where `η_t = R_t - μ(A_t)`.
-
-This is the scalar conditional-subgaussian statement that the textbook vector self-normalized
-argument uses for predictable projections of the noise process. -/
-lemma rewardNoise_ae_condExp_exp_le_history_action {alg : Algorithm (Fin K) ℝ}
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    {t : ℕ} (ht : t ≠ 0) (u : ℝ) :
-    ∀ᵐ ω ∂P,
-      P[fun ω' ↦ Real.exp (u * rewardNoise A R ν t ω') |
-        (inferInstance : MeasurableSpace ((Iic (t - 1) → Fin K × ℝ) × Fin K)).comap
-          (fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω))] ω
-        ≤ Real.exp (σ2 * u ^ 2 / 2) := by
-  let X : Ω → (Iic (t - 1) → Fin K × ℝ) × Fin K :=
-    fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω)
-  let Y : Ω → ℝ := rewardNoise A R ν t
-  let κ : Kernel ((Iic (t - 1) → Fin K × ℝ) × Fin K) ℝ :=
-    (rewardNoiseKernel ν).prodMkLeft (Iic (t - 1) → Fin K × ℝ)
-  have h_cond : HasCondDistrib Y X κ P := by
-    simpa [X, Y, κ] using
-      hasCondDistrib_rewardNoise_history_action (A := A) (R := R) (ν := ν) h ht
-  have hX_meas : Measurable X := by
-    dsimp [X]
-    exact Measurable.prodMk
-      (IsAlgEnvSeq.measurable_hist h.measurable_action h.measurable_feedback (t - 1))
-      (h.measurable_action t)
-  have hY_ae : AEMeasurable Y P := h_cond.aemeasurable_fst
-  have hf : StronglyMeasurable (fun η : ℝ ↦ Real.exp (u * η)) := by
-    fun_prop
-  have h_int : Integrable (fun ω ↦ Real.exp (u * Y ω)) P := by
-    simpa [Y] using
-      rewardNoise_integrable_exp_mul_history_action (A := A) (R := R) (ν := ν) h hν ht u
-  have h_ce :
-      P[fun ω ↦ Real.exp (u * Y ω) |
-        (inferInstance : MeasurableSpace ((Iic (t - 1) → Fin K × ℝ) × Fin K)).comap X]
-        =ᵐ[P] fun ω ↦ ∫ η, Real.exp (u * η) ∂condDistrib Y X P (X ω) := by
-    exact condExp_ae_eq_integral_condDistrib (μ := P) (X := X) (Y := Y)
-      hX_meas hY_ae hf h_int
-  have h_kernel_eq : ∀ᵐ ω ∂P, condDistrib Y X P (X ω) = κ (X ω) :=
-    ae_of_ae_map hX_meas.aemeasurable h_cond.condDistrib_eq
-  have h_kernel_subG :
-      ∀ z : (Iic (t - 1) → Fin K × ℝ) × Fin K,
-        HasSubgaussianMGF id σ2 (κ z) := by
-    intro z
-    simpa [κ] using
-      (RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian
-        (K := K) (ν := ν) hν).prodMkLeft z
-  filter_upwards [h_ce, h_kernel_eq] with ω h_ceω hκω
-  rw [h_ceω, hκω]
-  simpa [X, Y, κ, mgf] using (h_kernel_subG (X ω)).mgf_le u
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Variance proxy for multiplying a subgaussian scalar by a deterministic coefficient. -/
+/-- Variance proxy for a scalar projection coefficient times subgaussian reward noise. -/
 def scalarProjectionVariance (σ2 : ℝ≥0) (q : ℝ) : ℝ≥0 :=
   ⟨q ^ 2, sq_nonneg q⟩ * σ2
 
@@ -800,71 +565,8 @@ lemma ae_trim_of_ae_of_measurableSet (μ : Measure Ω) {m' : MeasurableSpace Ω}
   rw [trim_measurableSet_eq hm' hp_compl]
   exact hμ
 
-/-- Positive-time LinUCB reward noise is conditionally subgaussian with respect to the filtration
-generated by the previous history and the current selected action.
-
-This repackages `rewardNoise_ae_condExp_exp_le_history_action` into Mathlib's
-`HasCondSubgaussianMGF` API, which is the API used by the existing martingale-sum concentration
-lemmas. -/
-lemma rewardNoise_hasCondSubgaussianMGF_filtrationAction {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    {t : ℕ} (ht : t ≠ 0) :
-    HasCondSubgaussianMGF
-      (IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback t)
-      ((IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback).le t)
-      (rewardNoise A R ν t) σ2 P := by
-  let ℱ := IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback
-  let mX : MeasurableSpace Ω := ℱ t
-  have hmX : mX ≤ mΩ := ℱ.le t
-  let Y : Ω → ℝ := rewardNoise A R ν t
-  change Kernel.HasSubgaussianMGF Y σ2
-    (@condExpKernel Ω mΩ _ P _ mX) (@Measure.trim Ω mX mΩ P hmX)
-  refine Kernel.HasSubgaussianMGF.of_rat (X := Y) (c := σ2)
-    (κ := @condExpKernel Ω mΩ _ P _ mX) (ν := @Measure.trim Ω mX mΩ P hmX) ?_ ?_
-  · intro u
-    rw [condExpKernel_comp_trim (Ω := Ω) (m := mX) (mΩ := mΩ) (μ := P) hmX]
-    simpa [Y] using
-      rewardNoise_integrable_exp_mul_history_action (A := A) (R := R) (ν := ν) h hν ht u
-  · intro q
-    let u : ℝ := q
-    have h_int : Integrable (fun ω ↦ Real.exp (u * Y ω)) P := by
-      simpa [Y] using
-        rewardNoise_integrable_exp_mul_history_action (A := A) (R := R) (ν := ν) h hν ht u
-    have h_condExp_eq :
-        P[fun ω ↦ Real.exp (u * Y ω) | mX]
-          =ᵐ[P.trim hmX] fun ω ↦
-            ∫ y, Real.exp (u * Y y) ∂(@condExpKernel Ω mΩ _ P _ mX) ω := by
-      exact condExp_ae_eq_trim_integral_condExpKernel (Ω := Ω) (m := mX)
-        (mΩ := mΩ) (μ := P) hmX h_int
-    have h_condExp_le_P :
-        ∀ᵐ ω ∂P,
-          P[fun ω' ↦ Real.exp (u * Y ω') | mX] ω ≤ Real.exp (σ2 * u ^ 2 / 2) := by
-      have h_le := rewardNoise_ae_condExp_exp_le_history_action (A := A) (R := R)
-        (ν := ν) h hν ht u
-      simpa [Y, mX, ℱ, u, IsAlgEnvSeq.filtrationAction_eq_comap
-        (A := A) (Y := R) t ht] using h_le
-    have h_event_meas :
-        @MeasurableSet Ω mX
-          {ω | P[fun ω' ↦ Real.exp (u * Y ω') | mX] ω ≤ Real.exp (σ2 * u ^ 2 / 2)} := by
-      exact measurableSet_le stronglyMeasurable_condExp.measurable measurable_const
-    have h_condExp_le_trim :
-        ∀ᵐ ω ∂P.trim hmX,
-          P[fun ω' ↦ Real.exp (u * Y ω') | mX] ω ≤ Real.exp (σ2 * u ^ 2 / 2) :=
-      ae_trim_of_ae_of_measurableSet P hmX h_event_meas h_condExp_le_P
-    filter_upwards [h_condExp_eq, h_condExp_le_trim] with ω h_eq h_le
-    change (∫ y, Real.exp (u * Y y) ∂(@condExpKernel Ω mΩ _ P _ mX) ω) ≤
-      Real.exp (σ2 * u ^ 2 / 2)
-    rw [← h_eq]
-    exact h_le
-
-/-- Bounded predictable scalar coefficients preserve exponential integrability of the projected
-reward noise.
-
-If `|q(history, action)| ≤ Q`, then `exp (u * q_t * η_t)` is dominated by
-`exp (|u| Q * η_t) + exp (-|u| Q * η_t)`, and both endpoint exponentials are integrable by the
-arm-wise reward-noise subgaussian assumption. -/
+/-- Integrability of the exponential of a bounded predictable scalar projection of positive-time
+reward noise. -/
 lemma rewardNoise_constMul_integrable_exp_mul_history_action_of_abs_le
     {alg : Algorithm (Fin K) ℝ}
     [Nonempty (Fin K)]
@@ -1076,34 +778,7 @@ noncomputable def projectedRewardFeatureNoiseExpIncrement
     (u * projectedRewardFeatureNoise A R ν x v t ω -
       projectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω * u ^ 2 / 2)
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Cumulative realized variance proxy for a fixed direction of LinUCB reward-feature noise. -/
-noncomputable def projectedRewardFeatureNoiseRealizedVarianceSum
-    (A : ℕ → Ω → Fin K) (σ2 : ℝ≥0)
-    (x : Fin K → Feature d) (v : Feature d) (n : ℕ) (ω : Ω) : ℝ :=
-  ∑ t ∈ range n, projectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Finite-horizon fixed-direction exponential process with realized variance.
-
-This is the scalar process
-`exp(u * ∑_{t<n} Y_t - u² / 2 * ∑_{t<n} V_t)` that the textbook self-normalized proof later
-mixes over Gaussian directions. -/
-noncomputable def projectedRewardFeatureNoiseExpProcess
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ) (ν : Kernel (Fin K) ℝ)
-    (σ2 : ℝ≥0) (x : Fin K → Feature d) (v : Feature d) (u : ℝ)
-    (n : ℕ) (ω : Ω) : ℝ :=
-  Real.exp
-    (u * (∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω) -
-      projectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω * u ^ 2 / 2)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Filtration used to view positive-time projected reward-feature noises as a scalar martingale
-difference sequence.
-
-At index `i`, this is the repository's `filtrationAction` at time `i + 1`: it contains the full
-history through time `i` and the already selected action at time `i + 1`. Therefore the random
-variable at time `i + 1` is conditionally subgaussian with respect to this sigma-algebra. -/
+/-- Filtration shifted to include the selected action at the next time. -/
 def postActionFiltration
     (hA : ∀ n, Measurable (A n)) (hR : ∀ n, Measurable (R n)) :
     Filtration ℕ mΩ where
@@ -1119,250 +794,12 @@ lemma filtration_le_postActionFiltration
     IsAlgEnvSeq.filtration hA hR i ≤ postActionFiltration (A := A) (R := R) hA hR i := by
   simp [postActionFiltration, IsAlgEnvSeq.filtrationAction]
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction projected reward-feature noise is zero at time zero. -/
-lemma projectedRewardFeatureNoise_zero (v : Feature d) :
-    projectedRewardFeatureNoise A R ν x v 0 ω = 0 := by
-  simp [projectedRewardFeatureNoise]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The realized variance proxy is zero at time zero. -/
-lemma projectedRewardFeatureNoiseRealizedVariance_zero (σ2 : ℝ≥0) (v : Feature d) :
-    projectedRewardFeatureNoiseRealizedVariance A σ2 x v 0 ω = 0 := by
-  simp [projectedRewardFeatureNoiseRealizedVariance]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction realized variance proxy is nonnegative. -/
-lemma projectedRewardFeatureNoiseRealizedVariance_nonneg (σ2 : ℝ≥0) (v : Feature d)
-    (t : ℕ) :
-    0 ≤ projectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω := by
-  by_cases ht : t = 0
-  · simp [projectedRewardFeatureNoiseRealizedVariance, ht]
-  · simp [projectedRewardFeatureNoiseRealizedVariance, ht]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The cumulative fixed-direction realized variance proxy is nonnegative. -/
-lemma projectedRewardFeatureNoiseRealizedVarianceSum_nonneg (σ2 : ℝ≥0) (v : Feature d)
-    (n : ℕ) :
-    0 ≤ projectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω := by
-  rw [projectedRewardFeatureNoiseRealizedVarianceSum]
-  exact sum_nonneg fun t _ht ↦
-    projectedRewardFeatureNoiseRealizedVariance_nonneg (A := A) (σ2 := σ2)
-      (x := x) (v := v) (t := t) (ω := ω)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction exponential increment is one at time zero. -/
-lemma projectedRewardFeatureNoiseExpIncrement_zero (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) :
-    projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u 0 ω = 1 := by
-  simp [projectedRewardFeatureNoiseExpIncrement, projectedRewardFeatureNoise_zero,
-    projectedRewardFeatureNoiseRealizedVariance_zero]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Exponential increments are nonnegative. -/
-lemma projectedRewardFeatureNoiseExpIncrement_nonneg (σ2 : ℝ≥0) (v : Feature d) (u : ℝ)
-    (t : ℕ) :
-    0 ≤ projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u t ω := by
-  exact Real.exp_nonneg _
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The finite-horizon exponential process starts at one. -/
-lemma projectedRewardFeatureNoiseExpProcess_zero (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) :
-    projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u 0 ω = 1 := by
-  simp [projectedRewardFeatureNoiseExpProcess, projectedRewardFeatureNoiseRealizedVarianceSum]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The finite-horizon exponential process is nonnegative. -/
-lemma projectedRewardFeatureNoiseExpProcess_nonneg (σ2 : ℝ≥0) (v : Feature d) (u : ℝ)
-    (n : ℕ) :
-    0 ≤ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω := by
-  exact Real.exp_nonneg _
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction exponential process factors into the previous process times the next
-realized-variance exponential increment. -/
-lemma projectedRewardFeatureNoiseExpProcess_succ (σ2 : ℝ≥0) (v : Feature d) (u : ℝ)
-    (n : ℕ) :
-    projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u (n + 1) ω =
-      projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω *
-        projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω := by
-  simp only [projectedRewardFeatureNoiseExpProcess, projectedRewardFeatureNoiseExpIncrement,
-    projectedRewardFeatureNoiseRealizedVarianceSum, sum_range_succ]
-  rw [← Real.exp_add]
-  congr 1
-  ring
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The finite-horizon exponential process is still one at horizon one, because the positive-time
-process deliberately sets the time-zero reward-feature noise and variance to zero. -/
-lemma projectedRewardFeatureNoiseExpProcess_one (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) :
-    projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u 1 ω = 1 := by
-  simpa [projectedRewardFeatureNoiseExpProcess_zero, projectedRewardFeatureNoiseExpIncrement_zero]
-    using projectedRewardFeatureNoiseExpProcess_succ (A := A) (R := R) (ν := ν)
-      (σ2 := σ2) (x := x) (v := v) (u := u) (n := 0) (ω := ω)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- At positive times, the fixed-direction projected reward-feature noise is the predictable
-coefficient `⟪v, x_{A_t}⟫` times the centered reward noise. -/
-lemma projectedRewardFeatureNoise_eq_of_ne_zero (v : Feature d) {t : ℕ} (ht : t ≠ 0) :
-    projectedRewardFeatureNoise A R ν x v t ω =
-      dotProduct v (x (A t ω)) * rewardNoise A R ν t ω := by
-  simp [projectedRewardFeatureNoise, ht]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- At positive times, the realized variance proxy is the squared predictable projection times the
-reward-noise variance proxy. -/
-lemma projectedRewardFeatureNoiseRealizedVariance_eq_of_ne_zero
-    (σ2 : ℝ≥0) (v : Feature d) {t : ℕ} (ht : t ≠ 0) :
-    projectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω =
-      (scalarProjectionVariance σ2 (dotProduct v (x (A t ω))) : ℝ) := by
-  simp [projectedRewardFeatureNoiseRealizedVariance, ht]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The predictable coefficient for a fixed feature direction is measurable as a function of the
-history/action conditioning variable. -/
 lemma measurable_projectedRewardFeatureCoeff
     (v : Feature d) {t : ℕ} :
     Measurable
       (fun z : (Iic (t - 1) → Fin K × ℝ) × Fin K ↦ dotProduct v (x z.2)) :=
   (measurable_of_countable (fun a : Fin K ↦ dotProduct v (x a))).comp measurable_snd
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction projected reward-feature noise is adapted to `postActionFiltration`. -/
-lemma stronglyAdapted_projectedRewardFeatureNoise_postActionFiltration
-    (hA : ∀ n, Measurable (A n)) (hR : ∀ n, Measurable (R n))
-    (v : Feature d) :
-    StronglyAdapted (postActionFiltration (A := A) (R := R) hA hR)
-      (projectedRewardFeatureNoise A R ν x v) := by
-  intro t
-  by_cases ht : t = 0
-  · simpa [projectedRewardFeatureNoise, ht] using
-      (stronglyMeasurable_const :
-        StronglyMeasurable[postActionFiltration (A := A) (R := R) hA hR t]
-          (fun _ : Ω ↦ (0 : ℝ)))
-  · have hfil_le :
-        IsAlgEnvSeq.filtration hA hR t ≤ postActionFiltration (A := A) (R := R) hA hR t :=
-      filtration_le_postActionFiltration (A := A) (R := R) hA hR t
-    have hA_t : Measurable[postActionFiltration (A := A) (R := R) hA hR t] (A t) :=
-      (IsAlgEnvSeq.adapted_action hA hR t).mono hfil_le le_rfl
-    have hR_t : Measurable[postActionFiltration (A := A) (R := R) hA hR t] (R t) :=
-      (IsAlgEnvSeq.adapted_feedback hA hR t).mono hfil_le le_rfl
-    have hη_t :
-        Measurable[postActionFiltration (A := A) (R := R) hA hR t]
-          (rewardNoise A R ν t) := by
-      dsimp [rewardNoise]
-      exact hR_t.sub ((measurable_rewardMean ν).comp hA_t)
-    have hq_t :
-        Measurable[postActionFiltration (A := A) (R := R) hA hR t]
-          (fun ω ↦ dotProduct v (x (A t ω))) :=
-      (measurable_of_countable (fun a : Fin K ↦ dotProduct v (x a))).comp hA_t
-    rw [show projectedRewardFeatureNoise A R ν x v t =
-        fun ω ↦ dotProduct v (x (A t ω)) * rewardNoise A R ν t ω by
-      funext ω
-      simp [projectedRewardFeatureNoise, ht]]
-    exact (hq_t.mul hη_t).stronglyMeasurable
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction realized variance proxy is adapted to `postActionFiltration`. -/
-lemma stronglyAdapted_projectedRewardFeatureNoiseRealizedVariance_postActionFiltration
-    (hA : ∀ n, Measurable (A n)) (hR : ∀ n, Measurable (R n))
-    (σ2 : ℝ≥0) (v : Feature d) :
-    StronglyAdapted (postActionFiltration (A := A) (R := R) hA hR)
-      (projectedRewardFeatureNoiseRealizedVariance A σ2 x v) := by
-  intro t
-  by_cases ht : t = 0
-  · simpa [projectedRewardFeatureNoiseRealizedVariance, ht] using
-      (stronglyMeasurable_const :
-        StronglyMeasurable[postActionFiltration (A := A) (R := R) hA hR t]
-          (fun _ : Ω ↦ (0 : ℝ)))
-  · have hfil_le :
-        IsAlgEnvSeq.filtration hA hR t ≤ postActionFiltration (A := A) (R := R) hA hR t :=
-      filtration_le_postActionFiltration (A := A) (R := R) hA hR t
-    have hA_t : Measurable[postActionFiltration (A := A) (R := R) hA hR t] (A t) :=
-      (IsAlgEnvSeq.adapted_action hA hR t).mono hfil_le le_rfl
-    have hvar_t :
-        Measurable[postActionFiltration (A := A) (R := R) hA hR t]
-          (fun ω ↦ (scalarProjectionVariance σ2 (dotProduct v (x (A t ω))) : ℝ)) :=
-      (measurable_of_countable
-        (fun a : Fin K ↦ (scalarProjectionVariance σ2 (dotProduct v (x a)) : ℝ))).comp hA_t
-    rw [show projectedRewardFeatureNoiseRealizedVariance A σ2 x v t =
-        fun ω ↦ (scalarProjectionVariance σ2 (dotProduct v (x (A t ω))) : ℝ) by
-      funext ω
-      simp [projectedRewardFeatureNoiseRealizedVariance, ht]]
-    exact hvar_t.stronglyMeasurable
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction exponential process up to a positive horizon is measurable with respect to
-the post-action sigma-algebra at the previous time. -/
-lemma stronglyMeasurable_projectedRewardFeatureNoiseExpProcess_postActionFiltration_pred
-    (hA : ∀ n, Measurable (A n)) (hR : ∀ n, Measurable (R n))
-    (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) (n : ℕ) :
-    StronglyMeasurable[postActionFiltration (A := A) (R := R) hA hR (n - 1)]
-      (fun ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω) := by
-  let ℱ := postActionFiltration (A := A) (R := R) hA hR
-  have hY_adapt : StronglyAdapted ℱ (projectedRewardFeatureNoise A R ν x v) := by
-    simpa [ℱ] using
-      stronglyAdapted_projectedRewardFeatureNoise_postActionFiltration
-        (A := A) (R := R) (ν := ν) (x := x) hA hR v
-  have hV_adapt : StronglyAdapted ℱ (projectedRewardFeatureNoiseRealizedVariance A σ2 x v) := by
-    simpa [ℱ] using
-      stronglyAdapted_projectedRewardFeatureNoiseRealizedVariance_postActionFiltration
-        (A := A) (R := R) (x := x) hA hR σ2 v
-  have hY_sum :
-      Measurable[ℱ (n - 1)]
-        (fun ω ↦ ∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω) := by
-    refine Finset.measurable_fun_sum (range n) ?_
-    intro t ht
-    have ht_le : t ≤ n - 1 := by
-      exact Nat.le_pred_of_lt (by simpa using ht)
-    exact ((hY_adapt t).mono (ℱ.mono ht_le)).measurable
-  have hV_sum :
-      Measurable[ℱ (n - 1)]
-        (fun ω ↦ projectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω) := by
-    simp only [projectedRewardFeatureNoiseRealizedVarianceSum]
-    refine Finset.measurable_fun_sum (range n) ?_
-    intro t ht
-    have ht_le : t ≤ n - 1 := by
-      exact Nat.le_pred_of_lt (by simpa using ht)
-    exact ((hV_adapt t).mono (ℱ.mono ht_le)).measurable
-  refine (measurable_exp.comp ?_).stronglyMeasurable
-  exact (measurable_const.mul hY_sum).sub ((hV_sum.mul measurable_const).div_const 2)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The fixed-direction exponential process is adapted to the unshifted action filtration at its
-horizon.
-
-The existing `postActionFiltration` lemmas are indexed for increments: index `i` contains the
-history through `i` and the action at `i + 1`. A process value at horizon `n`, however, contains
-increments strictly before `n`, so for `n > 0` it is measurable with respect to
-`filtrationAction n`. The `n = 0` case is constant. -/
-lemma stronglyAdapted_projectedRewardFeatureNoiseExpProcess_filtrationAction
-    (hA : ∀ n, Measurable (A n)) (hR : ∀ n, Measurable (R n))
-    (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) :
-    StronglyAdapted (IsAlgEnvSeq.filtrationAction hA hR)
-      (fun n ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω) := by
-  intro n
-  by_cases hn : n = 0
-  · subst n
-    simpa [projectedRewardFeatureNoiseExpProcess_zero] using
-      (stronglyMeasurable_const :
-        StronglyMeasurable[IsAlgEnvSeq.filtrationAction hA hR 0]
-          (fun _ : Ω ↦ (1 : ℝ)))
-  · have hsm :=
-      stronglyMeasurable_projectedRewardFeatureNoiseExpProcess_postActionFiltration_pred
-        (A := A) (R := R) (ν := ν) (x := x) hA hR σ2 v u n
-    have hpost :
-        postActionFiltration (A := A) (R := R) hA hR (n - 1) =
-          IsAlgEnvSeq.filtrationAction hA hR n := by
-      simp [postActionFiltration, Nat.sub_add_cancel (Nat.pos_of_ne_zero hn)]
-    rw [← hpost]
-    exact hsm
-
-/-- A bounded fixed-direction projection of LinUCB reward-feature noise is conditionally
-subgaussian.
-
-This is the scalar concentration input immediately before a vector self-normalized theorem. For a
-fixed direction `v`, if `|⟪v, x_a⟫| ≤ Q` for every finite action `a`, then the positive-time
-projected noise `⟪v, x_{A_t}⟫η_t` is conditionally subgaussian with variance proxy `Q^2 σ2`. -/
 lemma projectedRewardFeatureNoise_hasCondSubgaussianMGF_filtrationAction_of_abs_le
     {alg : Algorithm (Fin K) ℝ}
     [StandardBorelSpace Ω] [Nonempty (Fin K)]
@@ -1548,355 +985,7 @@ lemma projectedRewardFeatureNoiseExpIncrement_ae_condExp_mul_le_of_abs_le
         ≤ M ω * 1 := mul_le_mul_of_nonneg_left h_stepω hMω
     _ = M ω := by simp
 
-/-- A bounded fixed-direction projection of the accumulated LinUCB reward-feature noise is
-subgaussian by Mathlib's scalar martingale-sum theorem.
-
-This is not the full vector self-normalized concentration theorem. It is the scalar fixed-direction
-ingredient: after choosing a direction `v`, the sum of
-`⟪v, x_{A_t}⟫η_t` is subgaussian with variance proxy equal to the sum of the per-time proxy bounds.
--/
-lemma projectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ) :
-    HasSubgaussianMGF
-      (fun ω ↦ ∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω)
-      (∑ t ∈ range n, if t = 0 then 0 else (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)) P := by
-  let ℱ := postActionFiltration (A := A) (R := R) h.measurable_action h.measurable_feedback
-  let Y : ℕ → Ω → ℝ := projectedRewardFeatureNoise A R ν x v
-  let cY : ℕ → ℝ≥0 :=
-    fun t ↦ if t = 0 then 0 else ⟨Q ^ 2, sq_nonneg Q⟩ * σ2
-  have h_adapted : StronglyAdapted ℱ Y := by
-    simpa [ℱ, Y] using
-      stronglyAdapted_projectedRewardFeatureNoise_postActionFiltration
-        (A := A) (R := R) (ν := ν) (x := x) h.measurable_action h.measurable_feedback v
-  have h0 : HasSubgaussianMGF (Y 0) (cY 0) P := by
-    have hY0 : Y 0 = (0 : Ω → ℝ) := by
-      funext ω
-      simp [Y, projectedRewardFeatureNoise]
-    have hcY0 : cY 0 = 0 := by
-      simp [cY]
-    rw [hY0, hcY0]
-    exact HasSubgaussianMGF.zero
-  have h_subG :
-      ∀ i < n - 1, HasCondSubgaussianMGF (ℱ i) (ℱ.le i) (Y (i + 1)) (cY (i + 1)) P := by
-    intro i _hi
-    simpa [ℱ, Y, cY] using
-      projectedRewardFeatureNoise_hasCondSubgaussianMGF_filtrationAction_of_abs_le
-        (A := A) (R := R) (ν := ν) (x := x) h hν (Nat.succ_ne_zero i)
-        v Q hQ hQ_bound
-  simpa [Y, cY] using
-    HasSubgaussianMGF.sum_of_hasCondSubgaussianMGF (μ := P) (ℱ := ℱ) (Y := Y) (cY := cY)
-      h_adapted h0 n h_subG
-
-/-- Integrability of the finite-horizon fixed-direction exponential process.
-
-The realized-variance penalty is nonnegative, so this process is pointwise bounded by
-`exp(u * ∑ projectedRewardFeatureNoise)`, whose integrability follows from the existing scalar
-subgaussian martingale-sum theorem. -/
-lemma projectedRewardFeatureNoiseExpProcess_integrable_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ) (n : ℕ) :
-    Integrable
-      (fun ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω) P := by
-  have h_base :
-      Integrable
-        (fun ω ↦ Real.exp
-          (u * (∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω))) P :=
-    (projectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le
-      (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound n).integrable_exp_mul u
-  have h_target :
-      AEStronglyMeasurable
-        (fun ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω) P :=
-    ((stronglyMeasurable_projectedRewardFeatureNoiseExpProcess_postActionFiltration_pred
-      (A := A) (R := R) (ν := ν) (x := x) h.measurable_action h.measurable_feedback
-      σ2 v u n).mono
-      ((postActionFiltration (A := A) (R := R) h.measurable_action h.measurable_feedback).le
-        (n - 1))).aestronglyMeasurable
-  refine Integrable.mono h_base h_target ?_
-  refine Filter.Eventually.of_forall fun ω ↦ ?_
-  have hpenalty_nonneg :
-      0 ≤ projectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω * u ^ 2 / 2 := by
-    have hsum_nonneg :
-        0 ≤ projectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω :=
-      projectedRewardFeatureNoiseRealizedVarianceSum_nonneg (A := A) (σ2 := σ2)
-        (x := x) (v := v) (n := n) (ω := ω)
-    positivity
-  simp only [projectedRewardFeatureNoiseExpProcess, Real.norm_of_nonneg (Real.exp_nonneg _)]
-  exact Real.exp_le_exp.mpr (by linarith [hpenalty_nonneg])
-
-/-- Finite-horizon fixed-direction exponential-supermartingale bound.
-
-For every fixed direction `v` and scalar `u`, the realized-variance exponential process has
-expectation at most one:
-`E exp(u ∑ Y_t - u²/2 ∑ V_t) ≤ 1`.
-
-This is still scalar. The remaining textbook self-normalized LinUCB step is the Gaussian-mixture
-argument that integrates this inequality over directions and converts it into the determinant
-self-normalized confidence radius. -/
-lemma integral_projectedRewardFeatureNoiseExpProcess_le_one_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ) :
-    ∫ ω, projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω ∂P ≤ 1 := by
-  induction n with
-  | zero =>
-      simp [projectedRewardFeatureNoiseExpProcess_zero]
-  | succ n ih =>
-      by_cases hn : n = 0
-      · subst n
-        simp [projectedRewardFeatureNoiseExpProcess_succ,
-          projectedRewardFeatureNoiseExpProcess_zero,
-          projectedRewardFeatureNoiseExpIncrement_zero]
-      · let ℱ := IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback
-        let M : Ω → ℝ := fun ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω
-        have hM_meas : AEStronglyMeasurable[ℱ n] M P := by
-          have hsm :=
-            stronglyMeasurable_projectedRewardFeatureNoiseExpProcess_postActionFiltration_pred
-              (A := A) (R := R) (ν := ν) (x := x) h.measurable_action h.measurable_feedback
-              σ2 v u n
-          have hpost :
-              postActionFiltration (A := A) (R := R) h.measurable_action h.measurable_feedback
-                  (n - 1) = ℱ n := by
-            simp [postActionFiltration, ℱ, Nat.sub_add_cancel (Nat.pos_of_ne_zero hn)]
-          have hsm_F : StronglyMeasurable[ℱ n] M := by
-            rw [← hpost]
-            simpa [M] using hsm
-          exact hsm_F.aestronglyMeasurable
-        have hM_nonneg : 0 ≤ᵐ[P] M :=
-          Filter.Eventually.of_forall fun ω ↦
-            projectedRewardFeatureNoiseExpProcess_nonneg (A := A) (R := R) (ν := ν)
-              (σ2 := σ2) (x := x) (v := v) (u := u) (n := n) (ω := ω)
-        have hM_int : Integrable M P :=
-          projectedRewardFeatureNoiseExpProcess_integrable_of_abs_le
-            (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound u n
-        have hM_mul_int :
-            Integrable
-              (fun ω ↦ M ω *
-                projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω) P := by
-          have hnext :
-              Integrable
-                (fun ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u (n + 1) ω)
-                P :=
-            projectedRewardFeatureNoiseExpProcess_integrable_of_abs_le
-              (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound u (n + 1)
-          refine hnext.congr ?_
-          exact Filter.Eventually.of_forall fun ω ↦ by
-            simpa [M] using
-              projectedRewardFeatureNoiseExpProcess_succ (A := A) (R := R) (ν := ν)
-              (σ2 := σ2) (x := x) (v := v) (u := u) (n := n) (ω := ω)
-        have h_cond :
-            ∀ᵐ ω ∂P,
-              P[fun ω' ↦ M ω' *
-                  projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω' | ℱ n] ω
-                ≤ M ω := by
-          simpa [ℱ] using
-            projectedRewardFeatureNoiseExpIncrement_ae_condExp_mul_le_of_abs_le
-              (A := A) (R := R) (ν := ν) (x := x) h hν hn v Q hQ hQ_bound u
-              M hM_meas hM_nonneg hM_mul_int
-        have h_cond_int :
-            Integrable
-              (fun ω ↦
-                P[fun ω' ↦ M ω' *
-                    projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω' | ℱ n] ω)
-              P := by
-          exact integrable_condExp
-        have h_cond_integral_le :
-            (∫ ω,
-              P[fun ω' ↦ M ω' *
-                  projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω' | ℱ n] ω ∂P)
-              ≤ ∫ ω, M ω ∂P :=
-          integral_mono_ae h_cond_int hM_int h_cond
-        calc
-          ∫ ω, projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u (n + 1) ω ∂P
-              = ∫ ω, M ω *
-                  projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω ∂P := by
-                refine integral_congr_ae ?_
-                exact Filter.Eventually.of_forall fun ω ↦ by
-                  simpa [M] using
-                    projectedRewardFeatureNoiseExpProcess_succ (A := A) (R := R)
-                    (ν := ν) (σ2 := σ2) (x := x) (v := v) (u := u) (n := n)
-                    (ω := ω)
-          _ = ∫ ω,
-                P[fun ω' ↦ M ω' *
-                    projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω' | ℱ n] ω ∂P := by
-                rw [integral_condExp (μ := P) (m := ℱ n) (hm := ℱ.le n)
-                  (f := fun ω ↦ M ω *
-                    projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u n ω)]
-          _ ≤ ∫ ω, M ω ∂P := h_cond_integral_le
-          _ ≤ 1 := ih
-
-/-- Fixed-direction exponential process as a Mathlib `Supermartingale`.
-
-This is the process-level form of
-`integral_projectedRewardFeatureNoiseExpProcess_le_one_of_abs_le`. It keeps the same bounded
-projection assumption and packages the existing one-step conditional bound into the interface used
-by optional-stopping/Ville arguments. The statement is still scalar and fixed-direction; the
-remaining textbook step is to integrate these scalar exponentials over Gaussian directions to
-obtain the self-normalized determinant confidence event. -/
-lemma supermartingale_projectedRewardFeatureNoiseExpProcess_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ) :
-    Supermartingale
-      (fun n ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω)
-      (IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback) P := by
-  let ℱ := IsAlgEnvSeq.filtrationAction h.measurable_action h.measurable_feedback
-  let Mproc : ℕ → Ω → ℝ :=
-    fun n ω ↦ projectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω
-  have h_adapted : StronglyAdapted ℱ Mproc := by
-    simpa [ℱ, Mproc] using
-      stronglyAdapted_projectedRewardFeatureNoiseExpProcess_filtrationAction
-        (A := A) (R := R) (ν := ν) (x := x)
-        h.measurable_action h.measurable_feedback σ2 v u
-  have h_integrable : ∀ i, Integrable (Mproc i) P := by
-    intro i
-    simpa [Mproc] using
-      projectedRewardFeatureNoiseExpProcess_integrable_of_abs_le
-        (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound u i
-  refine supermartingale_nat (𝒢 := ℱ) (μ := P) h_adapted h_integrable ?_
-  intro i
-  by_cases hi : i = 0
-  · subst i
-    change P[Mproc 1 | ℱ 0] ≤ᵐ[P] Mproc 0
-    have hM0 : Mproc 0 = fun _ : Ω ↦ (1 : ℝ) := by
-      funext ω
-      simp [Mproc, projectedRewardFeatureNoiseExpProcess_zero]
-    have hM1 : Mproc 1 = fun _ : Ω ↦ (1 : ℝ) := by
-      funext ω
-      simp [Mproc, projectedRewardFeatureNoiseExpProcess_one]
-    rw [hM0, hM1, condExp_const (ℱ.le 0)]
-  · let M : Ω → ℝ := Mproc i
-    have hM_meas : AEStronglyMeasurable[ℱ i] M P :=
-      (h_adapted i).aestronglyMeasurable
-    have hM_nonneg : 0 ≤ᵐ[P] M :=
-      Filter.Eventually.of_forall fun ω ↦ by
-        exact projectedRewardFeatureNoiseExpProcess_nonneg (A := A) (R := R) (ν := ν)
-          (σ2 := σ2) (x := x) (v := v) (u := u) (n := i) (ω := ω)
-    have hM_mul_int :
-        Integrable
-          (fun ω ↦ M ω *
-            projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u i ω) P := by
-      have hnext : Integrable (Mproc (i + 1)) P := h_integrable (i + 1)
-      refine hnext.congr ?_
-      exact Filter.Eventually.of_forall fun ω ↦ by
-        simpa [Mproc, M] using
-          projectedRewardFeatureNoiseExpProcess_succ (A := A) (R := R) (ν := ν)
-            (σ2 := σ2) (x := x) (v := v) (u := u) (n := i) (ω := ω)
-    have h_cond :
-        ∀ᵐ ω ∂P,
-          P[fun ω' ↦ M ω' *
-              projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u i ω' | ℱ i] ω
-            ≤ M ω := by
-      simpa [ℱ] using
-        projectedRewardFeatureNoiseExpIncrement_ae_condExp_mul_le_of_abs_le
-          (A := A) (R := R) (ν := ν) (x := x) h hν hi v Q hQ hQ_bound u
-          M hM_meas hM_nonneg hM_mul_int
-    have h_succ_eq :
-        (fun ω ↦ Mproc (i + 1) ω) =ᵐ[P]
-          fun ω ↦ M ω *
-            projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u i ω :=
-      Filter.Eventually.of_forall fun ω ↦ by
-        simpa [Mproc, M] using
-          projectedRewardFeatureNoiseExpProcess_succ (A := A) (R := R) (ν := ν)
-            (σ2 := σ2) (x := x) (v := v) (u := u) (n := i) (ω := ω)
-    have h_cond_eq :
-        P[Mproc (i + 1) | ℱ i] =ᵐ[P]
-          P[fun ω ↦ M ω *
-            projectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u i ω | ℱ i] :=
-      condExp_congr_ae h_succ_eq
-    filter_upwards [h_cond_eq, h_cond] with ω h_eq h_le
-    rw [h_eq]
-    exact h_le
-
-/-- One-sided tail bound for a bounded fixed-direction projection of the accumulated LinUCB
-reward-feature noise.
-
-This is the direct probability form of
-`projectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le`, matching the way `UCB.lean` exposes
-its scalar concentration facts. -/
-lemma probReal_projectedRewardFeatureNoise_sum_ge_le_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ)
-    {ε : ℝ} (hε : 0 ≤ ε) :
-    P.real
-        {ω |
-          ε ≤ ∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω}
-      ≤ Real.exp
-        (-ε ^ 2 /
-          (2 * (∑ t ∈ range n,
-            if t = 0 then 0 else (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)))) :=
-  (projectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le
-    (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound n).measure_ge_le hε
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Positive-time centered response vector.
-
-This is the vector martingale term that the scalar projected-noise concentration lemmas above
-control directly:
-`∑_{1 ≤ t < n} η_t x_{A_t}`. The full `centeredResponseVector` also contains the time-zero
-centered reward term, whose law is handled separately by the initial distribution in the
-algorithm/environment model. -/
-noncomputable def positiveTimeCenteredResponseVector
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ) (ν : Kernel (Fin K) ℝ)
-    (x : Fin K → Feature d) (n : ℕ) (ω : Ω) : Feature d :=
-  ∑ t ∈ range n, if t = 0 then 0 else rewardNoise A R ν t ω • x (A t ω)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- No positive-time centered response has accumulated at horizon zero. -/
-lemma positiveTimeCenteredResponseVector_zero :
-    positiveTimeCenteredResponseVector A R ν x 0 ω = 0 := by
-  simp [positiveTimeCenteredResponseVector]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Advancing the horizon adds the next positive-time centered reward-feature vector. -/
-lemma positiveTimeCenteredResponseVector_succ :
-    positiveTimeCenteredResponseVector A R ν x (n + 1) ω =
-      positiveTimeCenteredResponseVector A R ν x n ω +
-        if n = 0 then 0 else rewardNoise A R ν n ω • x (A n ω) := by
-  simp [positiveTimeCenteredResponseVector, sum_range_succ]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Time-zero contribution to the centered response vector, present exactly when the horizon is
-positive. -/
-noncomputable def initialCenteredResponseVector
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ) (ν : Kernel (Fin K) ℝ)
-    (x : Fin K → Feature d) (n : ℕ) (ω : Ω) : Feature d :=
-  if n = 0 then 0 else rewardNoise A R ν 0 ω • x (A 0 ω)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Projecting the time-zero centered response vector gives the scalar time-zero projected noise. -/
-lemma dotProduct_initialCenteredResponseVector
-    (v : Feature d) :
-    dotProduct v (initialCenteredResponseVector A R ν x n ω) =
-      if n = 0 then 0 else dotProduct v (x (A 0 ω)) * rewardNoise A R ν 0 ω := by
-  by_cases hn : n = 0
-  · simp [initialCenteredResponseVector, hn]
-  · simp only [initialCenteredResponseVector, hn, if_false, dotProduct, WithLp.ofLp_smul,
-      Pi.smul_apply, smul_eq_mul]
-    rw [Finset.sum_mul]
-    refine Finset.sum_congr rfl ?_
-    intro i _hi
-    ring_nf
-
-/-- The initial scalar reward noise is subgaussian for the deterministic initial LinUCB arm. -/
+/-- The initial reward noise is subgaussian under the arm-wise reward-noise assumption. -/
 lemma initialRewardNoise_hasSubgaussianMGF
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
@@ -1982,36 +1071,7 @@ lemma initialProjectedRewardFeatureNoise_hasSubgaussianMGF_of_abs_le
       (mul_le_mul_left hq0_sq_le σ2)
   exact h_bound
 
-/-- The initial centered response vector has the expected fixed-direction scalar subgaussian
-bound. At horizon zero the vector is zero; at every positive horizon it is the time-zero projected
-reward-feature noise. -/
-lemma dotProduct_initialCenteredResponseVector_hasSubgaussianMGF_of_abs_le
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ) :
-    HasSubgaussianMGF
-      (fun ω ↦ dotProduct v (initialCenteredResponseVector A R ν x n ω))
-      (if n = 0 then 0 else (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)) P := by
-  by_cases hn : n = 0
-  · rw [if_pos hn]
-    have h_zero :
-        (fun ω ↦ dotProduct v (initialCenteredResponseVector A R ν x n ω)) =
-          (0 : Ω → ℝ) := by
-      funext ω
-      simp [dotProduct_initialCenteredResponseVector, hn]
-    rw [h_zero]
-    exact HasSubgaussianMGF.zero
-  · rw [if_neg hn]
-    exact (initialProjectedRewardFeatureNoise_hasSubgaussianMGF_of_abs_le
-      (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) h hν
-      v Q hQ hQ_bound).congr
-      (Filter.Eventually.of_forall fun ω ↦ by
-        simp [dotProduct_initialCenteredResponseVector, hn])
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- A fixed-direction scalar projection of the full LinUCB centered reward-feature noise. -/
+/-- Full projected reward-feature noise, including the time-zero term. -/
 noncomputable def fullProjectedRewardFeatureNoise
     (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ) (ν : Kernel (Fin K) ℝ)
     (x : Fin K → Feature d) (v : Feature d) (t : ℕ) (ω : Ω) : ℝ :=
@@ -2033,18 +1093,7 @@ noncomputable def fullProjectedRewardFeatureNoiseRealizedVariance
     (x : Fin K → Feature d) (v : Feature d) (t : ℕ) (ω : Ω) : ℝ :=
   (scalarProjectionVariance σ2 (dotProduct v (x (A t ω))) : ℝ)
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- At positive times, the full realized variance agrees with the positive-time realized variance
-used by the conditional-law exponential step. -/
-lemma fullProjectedRewardFeatureNoiseRealizedVariance_eq_projected_of_ne_zero
-    (σ2 : ℝ≥0) (v : Feature d) {t : ℕ} (ht : t ≠ 0) :
-    fullProjectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω =
-      projectedRewardFeatureNoiseRealizedVariance A σ2 x v t ω := by
-  simp [fullProjectedRewardFeatureNoiseRealizedVariance,
-    projectedRewardFeatureNoiseRealizedVariance, ht]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Exponential-supermartingale increment for the full fixed-direction reward-feature noise. -/
+/-- Exponential increment for the full fixed-direction reward-feature noise process. -/
 noncomputable def fullProjectedRewardFeatureNoiseExpIncrement
     (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ) (ν : Kernel (Fin K) ℝ)
     (σ2 : ℝ≥0) (x : Fin K → Feature d) (v : Feature d) (u : ℝ)
@@ -2212,21 +1261,6 @@ lemma dotProduct_designMatrix_mulVec_eq_reg_add_sum_sq (v : Feature d) :
     (ω := ω) v]
   simp [dotProduct_smul]
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- After removing the ridge part of the design matrix, the quadratic form is exactly the observed
-projected feature-square sum. -/
-lemma dotProduct_designMatrix_sub_reg_smul_one_mulVec_eq_sum_sq (v : Feature d) :
-    dotProduct v
-        (Matrix.mulVec
-          (designMatrix A reg x n ω - reg • (1 : Matrix (Fin d) (Fin d) ℝ)) v) =
-      ∑ t ∈ range n, (dotProduct v (x (A t ω))) ^ 2 := by
-  rw [Matrix.sub_mulVec, dotProduct_sub,
-    dotProduct_designMatrix_mulVec_eq_reg_add_sum_sq (A := A) (reg := reg)
-      (x := x) (n := n) (ω := ω) v]
-  simp [Matrix.smul_mulVec, Matrix.one_mulVec, dotProduct_smul]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The full realized-variance sum is `σ²` times the observed projected feature-square sum. -/
 lemma fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_sum_sq
     (σ2 : ℝ≥0) (v : Feature d) :
     fullProjectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω =
@@ -2242,24 +1276,6 @@ lemma fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_sum_sq
     _ = (σ2 : ℝ) * ∑ t ∈ range n, (dotProduct v (x (A t ω))) ^ 2 := by
           rw [Finset.mul_sum]
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The full realized-variance sum is `σ²` times the quadratic form of the non-ridge part of the
-design matrix. -/
-lemma fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_designMatrix_sub_reg
-    (σ2 : ℝ≥0) (v : Feature d) :
-    fullProjectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω =
-      (σ2 : ℝ) *
-        dotProduct v
-          (Matrix.mulVec
-            (designMatrix A reg x n ω - reg • (1 : Matrix (Fin d) (Fin d) ℝ)) v) := by
-  rw [fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_sum_sq
-      (A := A) (σ2 := σ2) (x := x) (v := v) (n := n) (ω := ω),
-    dotProduct_designMatrix_sub_reg_smul_one_mulVec_eq_sum_sq (A := A)
-      (reg := reg) (x := x) (n := n) (ω := ω) v]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Equivalent design-matrix form of the full realized-variance sum:
-`σ² * (vᵀV_n v - reg * vᵀv)`. -/
 lemma fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_designMatrix_minus_reg_norm
     (σ2 : ℝ≥0) (v : Feature d) :
     fullProjectedRewardFeatureNoiseRealizedVarianceSum A σ2 x v n ω =
@@ -2273,14 +1289,6 @@ lemma fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_designMatr
   ring
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Full exponential increments are nonnegative. -/
-lemma fullProjectedRewardFeatureNoiseExpIncrement_nonneg
-    (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) (t : ℕ) :
-    0 ≤ fullProjectedRewardFeatureNoiseExpIncrement A R ν σ2 x v u t ω := by
-  exact Real.exp_nonneg _
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The full finite-horizon exponential process starts at one. -/
 lemma fullProjectedRewardFeatureNoiseExpProcess_zero
     (σ2 : ℝ≥0) (v : Feature d) (u : ℝ) :
     fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u 0 ω = 1 := by
@@ -2403,7 +1411,16 @@ lemma stronglyAdapted_fullProjectedRewardFeatureNoiseExpProcess_filtrationAction
   intro n
   by_cases hn : n = 0
   · subst n
-    simpa [fullProjectedRewardFeatureNoiseExpProcess_zero] using
+    have hconst :
+        (fun ω ↦ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u 0 ω) =
+          fun _ : Ω ↦ (1 : ℝ) := by
+      funext ω
+      exact fullProjectedRewardFeatureNoiseExpProcess_zero (A := A) (R := R) (ν := ν)
+        (σ2 := σ2) (x := x) (v := v) (u := u) (ω := ω)
+    change StronglyMeasurable[IsAlgEnvSeq.filtrationAction hA hR 0]
+      (fun ω ↦ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u 0 ω)
+    rw [hconst]
+    exact
       (stronglyMeasurable_const :
         StronglyMeasurable[IsAlgEnvSeq.filtrationAction hA hR 0]
           (fun _ : Ω ↦ (1 : ℝ)))
@@ -2852,31 +1869,6 @@ lemma integral_exp_dotProduct_centeredResponseVector_sub_fullRealizedVariance_le
       (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
       h hν v Q hQ hQ_bound u
 
-/-- Fixed-direction exponential-supermartingale bound with the realized variance written as the
-quadratic form of the non-ridge part of the design matrix. -/
-lemma integral_exp_dotProduct_centeredResponseVector_sub_designMatrix_sub_reg_le_one_of_abs_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ) :
-    ∫ ω, Real.exp
-        (u * dotProduct v (centeredResponseVector A R ν x n ω) -
-          ((σ2 : ℝ) *
-            dotProduct v
-              (Matrix.mulVec
-                (designMatrix A reg x n ω - reg • (1 : Matrix (Fin d) (Fin d) ℝ)) v)) *
-              u ^ 2 / 2) ∂P
-      ≤ 1 := by
-  simpa [fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_designMatrix_sub_reg
-    (A := A) (reg := reg) (x := x) (σ2 := σ2) (v := v) (n := n)] using
-    integral_exp_dotProduct_centeredResponseVector_sub_fullRealizedVariance_le_one_of_abs_le
-      (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-      h hν v Q hQ hQ_bound u
-
-/-- Fixed-direction exponential-supermartingale bound with the realized variance written as
-`σ² * (vᵀV_n v - reg * vᵀv)`. This is the algebraic form immediately before adding the Gaussian
-mixture's ridge term. -/
 lemma integral_exp_centeredResponse_sub_designMatrix_minus_reg_norm_le_one_of_abs_le
     [StandardBorelSpace Ω] [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
@@ -3037,353 +2029,13 @@ lemma integral_exp_centeredResponseDirectionalExponent_le_one
       (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
       h hν lambda (1 : ℝ)
 
-/-- Markov tail bound for the fixed-direction exponential process, with an explicit projection
-bound.
-
-This is the scalar probability step immediately after the exponential-supermartingale integral
-bound and immediately before the textbook Gaussian-mixture argument. -/
-lemma probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_le_of_abs_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ)
-    {threshold : ℝ} (hthreshold : 0 < threshold) :
-    P.real {ω |
-      threshold ≤ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω} ≤
-        1 / threshold := by
-  have hmarkov :
-      threshold *
-          P.real {ω |
-            threshold ≤ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω} ≤
-        ∫ ω, fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω ∂P :=
-    mul_meas_ge_le_integral_of_nonneg
-      (μ := P)
-      (f := fun ω ↦ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω)
-      (Filter.Eventually.of_forall fun ω ↦
-        fullProjectedRewardFeatureNoiseExpProcess_nonneg (A := A) (R := R)
-          (ν := ν) (σ2 := σ2) (x := x) (v := v) (u := u) (n := n) (ω := ω))
-      (fullProjectedRewardFeatureNoiseExpProcess_integrable_of_abs_le (A := A)
-        (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-        h hν v Q hQ hQ_bound u)
-      threshold
-  have hmul :
-      threshold *
-          P.real {ω |
-            threshold ≤ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω} ≤
-        1 :=
-    hmarkov.trans
-      (integral_fullProjectedRewardFeatureNoiseExpProcess_le_one_of_abs_le
-        (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-        h hν v Q hQ hQ_bound u)
-  rw [le_div_iff₀ hthreshold]
-  simpa [mul_comm] using hmul
-
-/-- Fixed-direction exponential-process tail bound at threshold `1 / δ`, with an explicit
-projection bound. -/
-lemma probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_inv_delta_le_of_abs_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (u : ℝ)
-    {δ : ℝ} (hδ_pos : 0 < δ) :
-    P.real {ω |
-      1 / δ ≤ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω} ≤ δ := by
-  have htail :=
-    probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_le_of_abs_le
-      (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-      h hν v Q hQ hQ_bound u (one_div_pos.mpr hδ_pos)
-  have hinv : 1 / (1 / δ) = δ := by
-    field_simp [hδ_pos.ne']
-  simpa [hinv] using htail
-
-/-- Fixed-direction exponential-process tail bound with the finite-action projection bound chosen
-automatically. -/
-lemma probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_inv_delta_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (u : ℝ) {δ : ℝ} (hδ_pos : 0 < δ) :
-    P.real {ω |
-      1 / δ ≤ fullProjectedRewardFeatureNoiseExpProcess A R ν σ2 x v u n ω} ≤ δ := by
-  obtain ⟨Q, hQ, hQ_bound⟩ := exists_abs_dotProduct_feature_bound x v
-  exact probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_inv_delta_le_of_abs_le
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-    h hν v Q hQ hQ_bound u hδ_pos
-
-/-- Fixed-direction exponential-process tail bound in the centered-response/design-matrix form
-used by the textbook Gaussian-mixture proof. -/
-lemma probReal_exp_centeredResponse_sub_designMatrix_minus_reg_norm_ge_inv_delta_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (u : ℝ) {δ : ℝ} (hδ_pos : 0 < δ) :
-    P.real {ω |
-      1 / δ ≤
-        Real.exp
-          (u * dotProduct v (centeredResponseVector A R ν x n ω) -
-            ((σ2 : ℝ) *
-              (dotProduct v (Matrix.mulVec (designMatrix A reg x n ω) v) -
-                reg * dotProduct v v)) *
-                u ^ 2 / 2)} ≤ δ := by
-  simpa [fullProjectedRewardFeatureNoiseExpProcess_eq_centeredResponseVector
-    (A := A) (R := R) (ν := ν) (x := x) (n := n) (σ2 := σ2) (v := v) (u := u),
-    fullProjectedRewardFeatureNoiseRealizedVarianceSum_eq_sigma_mul_designMatrix_minus_reg_norm
-      (A := A) (reg := reg) (x := x) (σ2 := σ2) (v := v) (n := n)] using
-    probReal_fullProjectedRewardFeatureNoiseExpProcess_ge_inv_delta_le
-      (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-      h hν v u hδ_pos
-
-/-- Fixed-direction subgaussianity of the full centered response vector. -/
-lemma dotProduct_centeredResponseVector_hasSubgaussianMGF_of_abs_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ) :
-    HasSubgaussianMGF
-      (fun ω ↦ dotProduct v (centeredResponseVector A R ν x n ω))
-      (∑ _t ∈ range n, (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)) P := by
-  exact (fullProjectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν)
-    h hν v Q hQ hQ_bound n).congr
-    (Filter.Eventually.of_forall fun ω ↦
-      (dotProduct_centeredResponseVector_eq_fullProjectedRewardFeatureNoise_sum
-        (A := A) (R := R) (ν := ν) (x := x) (n := n) (ω := ω) v).symm)
-
-/-- One-sided tail bound for a fixed direction of the full centered response vector. -/
-lemma probReal_dotProduct_centeredResponseVector_ge_le_of_abs_le
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ)
-    {ε : ℝ} (hε : 0 ≤ ε) :
-    P.real
-        {ω | ε ≤ dotProduct v (centeredResponseVector A R ν x n ω)}
-      ≤ Real.exp
-        (-ε ^ 2 /
-          (2 * (∑ _t ∈ range n, (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)))) :=
-  (dotProduct_centeredResponseVector_hasSubgaussianMGF_of_abs_le
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν)
-    h hν v Q hQ hQ_bound n).measure_ge_le hε
-
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The scalar projected-noise sum is exactly the dot product of the direction with the
-positive-time centered response vector. -/
-lemma dotProduct_positiveTimeCenteredResponseVector_eq_projectedRewardFeatureNoise_sum
-    (v : Feature d) :
-    dotProduct v (positiveTimeCenteredResponseVector A R ν x n ω) =
-      ∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω := by
-  simp only [positiveTimeCenteredResponseVector, projectedRewardFeatureNoise, dotProduct,
-    WithLp.ofLp_sum, Finset.sum_apply]
-  calc
-    ∑ i, v i *
-        (∑ t ∈ range n, (if t = 0 then 0 else rewardNoise A R ν t ω • x (A t ω)) i)
-        = ∑ i, ∑ t ∈ range n,
-            v i * (if t = 0 then 0 else rewardNoise A R ν t ω • x (A t ω)) i := by
-          refine Finset.sum_congr rfl ?_
-          intro i _hi
-          rw [Finset.mul_sum]
-    _ = ∑ t ∈ range n, ∑ i,
-          v i * (if t = 0 then 0 else rewardNoise A R ν t ω • x (A t ω)) i := by
-        rw [Finset.sum_comm]
-    _ = ∑ t ∈ range n,
-          if t = 0 then 0 else dotProduct v (x (A t ω)) * rewardNoise A R ν t ω := by
-        refine Finset.sum_congr rfl ?_
-        intro t _ht
-        by_cases ht0 : t = 0
-        · simp [ht0]
-        · simp only [ht0, if_false, WithLp.ofLp_smul, Pi.smul_apply, smul_eq_mul,
-            dotProduct]
-          rw [Finset.sum_mul]
-          refine Finset.sum_congr rfl ?_
-          intro i _hi
-          ring_nf
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The projected-noise sum can be rewritten as a dot product with the positive-time centered
-response vector. -/
-lemma projectedRewardFeatureNoise_sum_eq_dotProduct_positiveTimeCenteredResponseVector
-    (v : Feature d) :
-    (∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω) =
-      dotProduct v (positiveTimeCenteredResponseVector A R ν x n ω) := by
-  rw [dotProduct_positiveTimeCenteredResponseVector_eq_projectedRewardFeatureNoise_sum]
-
-/-- Fixed-direction subgaussianity of the positive-time centered response vector. -/
-lemma dotProduct_positiveTimeCenteredResponseVector_hasSubgaussianMGF_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ) :
-    HasSubgaussianMGF
-      (fun ω ↦ dotProduct v (positiveTimeCenteredResponseVector A R ν x n ω))
-      (∑ t ∈ range n, if t = 0 then 0 else (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)) P := by
-  exact (projectedRewardFeatureNoise_sum_hasSubgaussianMGF_of_abs_le
-    (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound n).congr
-    (Filter.Eventually.of_forall fun ω ↦
-      projectedRewardFeatureNoise_sum_eq_dotProduct_positiveTimeCenteredResponseVector
-        (A := A) (R := R) (ν := ν) (x := x) (n := n) (ω := ω) v)
-
-/-- One-sided tail bound for a fixed direction of the positive-time centered response vector. -/
-lemma probReal_dotProduct_positiveTimeCenteredResponseVector_ge_le_of_abs_le
-    {alg : Algorithm (Fin K) ℝ}
-    [StandardBorelSpace Ω] [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    (v : Feature d) (Q : ℝ) (hQ : 0 ≤ Q)
-    (hQ_bound : ∀ a, |dotProduct v (x a)| ≤ Q) (n : ℕ)
-    {ε : ℝ} (hε : 0 ≤ ε) :
-    P.real
-        {ω |
-          ε ≤ dotProduct v (positiveTimeCenteredResponseVector A R ν x n ω)}
-      ≤ Real.exp
-        (-ε ^ 2 /
-          (2 * (∑ t ∈ range n,
-            if t = 0 then 0 else (⟨Q ^ 2, sq_nonneg Q⟩ * σ2 : ℝ≥0)))) :=
-  (dotProduct_positiveTimeCenteredResponseVector_hasSubgaussianMGF_of_abs_le
-    (A := A) (R := R) (ν := ν) (x := x) h hν v Q hQ hQ_bound n).measure_ge_le hε
-
-/-- Under the UCB-style arm-wise reward-noise assumption, every predictable scalar projection of the
-positive-time reward-noise conditional law is subgaussian with the squared projection coefficient.
-
-This is still a conditional-law statement, not yet the final martingale concentration theorem. It
-is the local scalar ingredient that the vector self-normalized argument must combine over time and
-directions. -/
-lemma rewardNoise_condDistrib_history_action_constMul_subgaussian
-    {alg : Algorithm (Fin K) ℝ}
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R alg (stationaryEnv ν) P)
-    {σ2 : ℝ≥0} (hν : RewardNoiseSubgaussian (K := K) ν σ2)
-    {t : ℕ} (ht : t ≠ 0)
-    (q : (Iic (t - 1) → Fin K × ℝ) × Fin K → ℝ) :
-    ∀ᵐ z ∂P.map (fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω)),
-      HasSubgaussianMGF (fun η ↦ q z * η)
-        (⟨q z ^ 2, sq_nonneg (q z)⟩ * σ2)
-        (condDistrib (rewardNoise A R ν t)
-          (fun ω ↦ (IsAlgEnvSeq.hist A R (t - 1) ω, A t ω)) P z) := by
-  have h_cond := hasCondDistrib_rewardNoise_history_action
-    (A := A) (R := R) (ν := ν) h ht
-  have h_kernel :
-      ∀ z : (Iic (t - 1) → Fin K × ℝ) × Fin K,
-        HasSubgaussianMGF (fun η ↦ q z * η)
-          (⟨q z ^ 2, sq_nonneg (q z)⟩ * σ2)
-          ((rewardNoiseKernel ν).prodMkLeft (Iic (t - 1) → Fin K × ℝ) z) :=
-    (RewardNoiseKernelSubgaussian.of_rewardNoiseSubgaussian
-      (K := K) (ν := ν) hν).prodMkLeft_constMul q
-  filter_upwards [h_cond.condDistrib_eq] with z hz
-  rw [hz]
-  exact h_kernel z
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The centered response vector is the accumulated reward noise times the selected feature
-vectors: `∑_{s<t} η_s x_{A_s}`. This is the vector martingale term in the textbook
-self-normalized concentration proof. -/
-lemma centeredResponseVector_eq_sum_rewardNoise_smul :
-    centeredResponseVector A R ν x n ω =
-      ∑ s ∈ range n, rewardNoise A R ν s ω • x (A s ω) := by
-  ext i
-  simp [centeredResponseVector, responseVector, meanResponseVector, rewardNoise,
-    Finset.sum_sub_distrib, smul_eq_mul, sub_mul]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Before any observations, the centered response vector is zero. -/
+/-- The centered response vector is zero before any observations. -/
 lemma centeredResponseVector_zero :
     centeredResponseVector A R ν x 0 ω = 0 := by
   simp [centeredResponseVector, responseVector, meanResponseVector]
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Updating the centered response vector adds the next centered reward times its selected feature
-vector. -/
-lemma centeredResponseVector_succ :
-    centeredResponseVector A R ν x (n + 1) ω =
-      centeredResponseVector A R ν x n ω + rewardNoise A R ν n ω • x (A n ω) := by
-  simp [centeredResponseVector_eq_sum_rewardNoise_smul, sum_range_succ]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The full centered response vector splits into its time-zero contribution plus the positive-time
-martingale term. -/
-lemma centeredResponseVector_eq_initial_add_positiveTime :
-    centeredResponseVector A R ν x n ω =
-      initialCenteredResponseVector A R ν x n ω +
-        positiveTimeCenteredResponseVector A R ν x n ω := by
-  rw [centeredResponseVector_eq_sum_rewardNoise_smul]
-  by_cases hn : n = 0
-  · simp [hn, initialCenteredResponseVector, positiveTimeCenteredResponseVector]
-  · rw [initialCenteredResponseVector, positiveTimeCenteredResponseVector]
-    simp only [hn, if_false]
-    calc
-      ∑ s ∈ range n, rewardNoise A R ν s ω • x (A s ω)
-          = ∑ s ∈ range n,
-              ((if s = 0 then rewardNoise A R ν 0 ω • x (A 0 ω) else 0) +
-                if s = 0 then 0 else rewardNoise A R ν s ω • x (A s ω)) := by
-            refine Finset.sum_congr rfl ?_
-            intro s _hs
-            by_cases hs0 : s = 0
-            · simp [hs0]
-            · simp [hs0]
-      _ = (∑ s ∈ range n,
-              if s = 0 then rewardNoise A R ν 0 ω • x (A 0 ω) else 0) +
-            ∑ s ∈ range n,
-              if s = 0 then 0 else rewardNoise A R ν s ω • x (A s ω) := by
-            rw [Finset.sum_add_distrib]
-      _ = rewardNoise A R ν 0 ω • x (A 0 ω) +
-            ∑ s ∈ range n,
-              if s = 0 then 0 else rewardNoise A R ν s ω • x (A s ω) := by
-            rw [Finset.sum_ite_eq']
-            simp [Nat.pos_of_ne_zero hn]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Projecting the full centered response vector splits into the initial projection plus the
-positive-time projected noise sum. -/
-lemma dotProduct_centeredResponseVector_eq_initial_add_positiveTime
-    (v : Feature d) :
-    dotProduct v (centeredResponseVector A R ν x n ω) =
-      dotProduct v (initialCenteredResponseVector A R ν x n ω) +
-        dotProduct v (positiveTimeCenteredResponseVector A R ν x n ω) := by
-  rw [centeredResponseVector_eq_initial_add_positiveTime]
-  simp only [dotProduct]
-  calc
-    ∑ i, v i *
-        (initialCenteredResponseVector A R ν x n ω i +
-          positiveTimeCenteredResponseVector A R ν x n ω i)
-        = ∑ i,
-            (v i * initialCenteredResponseVector A R ν x n ω i +
-              v i * positiveTimeCenteredResponseVector A R ν x n ω i) := by
-          refine Finset.sum_congr rfl ?_
-          intro i _hi
-          ring
-    _ = (∑ i, v i * initialCenteredResponseVector A R ν x n ω i) +
-          ∑ i, v i * positiveTimeCenteredResponseVector A R ν x n ω i := by
-        rw [Finset.sum_add_distrib]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Projecting the full centered response vector gives the initial projected noise plus the
-positive-time projected-noise sum. -/
-lemma dotProduct_centeredResponseVector_eq_initial_add_projectedRewardFeatureNoise_sum
-    (v : Feature d) :
-    dotProduct v (centeredResponseVector A R ν x n ω) =
-      (if n = 0 then 0 else dotProduct v (x (A 0 ω)) * rewardNoise A R ν 0 ω) +
-        ∑ t ∈ range n, projectedRewardFeatureNoise A R ν x v t ω := by
-  rw [dotProduct_centeredResponseVector_eq_initial_add_positiveTime,
-    dotProduct_initialCenteredResponseVector,
-    dotProduct_positiveTimeCenteredResponseVector_eq_projectedRewardFeatureNoise_sum]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The vector inside the centered-noise-plus-bias quadratic form, written in the textbook
-`∑ η_s x_s - reg • θ` form. -/
-lemma centeredResponseVector_sub_reg_eq_sum_rewardNoise_smul_sub_reg (θ : Feature d) :
-    centeredResponseVector A R ν x n ω - reg • θ =
-      (∑ s ∈ range n, rewardNoise A R ν s ω • x (A s ω)) - reg • θ := by
-  rw [centeredResponseVector_eq_sum_rewardNoise_smul]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Under linear realizability, multiplying the true parameter by the design matrix gives the
-regularization bias plus the mean response vector:
-`V_t θ = reg • θ + ∑ μ(A_s) x_{A_s}`. -/
 lemma designMatrix_mulVec_linearMeanParameter
     (θ : Feature d)
     (h_linear : LinearMeanModel ν x θ) :
@@ -3401,23 +2053,6 @@ lemma designMatrix_mulVec_linearMeanParameter
   simp [mul_comm]
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Deterministic least-squares algebra before using invertibility:
-`Y_t - V_t θ = centeredResponse_t - reg • θ`. -/
-lemma responseVector_sub_designMatrix_mulVec_linearMeanParameter
-    (θ : Feature d)
-    (h_linear : LinearMeanModel ν x θ) :
-    responseVector A R x n ω - Matrix.mulVec (designMatrix A reg x n ω) θ =
-      centeredResponseVector A R ν x n ω - reg • θ := by
-  rw [designMatrix_mulVec_linearMeanParameter (A := A) (reg := reg) (x := x)
-    (ν := ν) (n := n) (ω := ω) θ h_linear]
-  simp [centeredResponseVector, sub_eq_add_neg, add_assoc, add_comm]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Deterministic least-squares error decomposition:
-`V_t (θHat_t - θ) = centeredResponse_t - reg • θ`.
-
-This is the algebraic bridge used by the textbook self-normalized proof. The remaining
-probabilistic theorem has to control the centered response vector in the `V_t⁻¹` norm. -/
 lemma designMatrix_mulVec_thetaHat_sub_linearMeanParameter
     (θ : Feature d)
     (h_linear : LinearMeanModel ν x θ)
@@ -3647,83 +2282,6 @@ lemma exp_centeredResponseDirectionalExponent_mul_exp_neg_priorPenalty_eq_comple
     σ2 lambda hreg_pos hσ2_ne
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- A coordinate-wise absolute-value bound controls the squared Euclidean norm of a feature
-vector. -/
-lemma dotProduct_self_le_nat_mul_sq_of_abs_le
-    (u : Feature d) {B : ℝ} (hB_nonneg : 0 ≤ B)
-    (hu : ∀ i, |u i| ≤ B) :
-    dotProduct u u ≤ (d : ℝ) * B ^ 2 := by
-  rw [dotProduct]
-  calc
-    ∑ i, u i * u i ≤ ∑ _i : Fin d, B ^ 2 := by
-      refine Finset.sum_le_sum fun i _hi ↦ ?_
-      have hsq : u i ^ 2 ≤ B ^ 2 := by
-        exact sq_le_sq.2 (by simpa [abs_of_nonneg hB_nonneg] using hu i)
-      simpa [pow_two] using hsq
-    _ = (d : ℝ) * B ^ 2 := by
-      simp [Finset.sum_const, nsmul_eq_mul]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Positive regularization bounds the centered-noise inverse-design quadratic form by the
-ordinary squared Euclidean norm divided by `reg`. -/
-lemma centeredNoiseQuadraticForm_le_sqNorm_div_reg
-    (hreg_pos : 0 < reg) :
-    centeredNoiseQuadraticForm A R ν reg x n ω ≤
-      dotProduct (centeredResponseVector A R ν x n ω)
-        (centeredResponseVector A R ν x n ω) / reg := by
-  calc
-    centeredNoiseQuadraticForm A R ν reg x n ω
-        ≤ dotProduct (centeredResponseVector A R ν x n ω)
-            (Matrix.mulVec (reg • (1 : Matrix (Fin d) (Fin d) ℝ))⁻¹
-              (centeredResponseVector A R ν x n ω)) :=
-          dotProduct_mulVec_le_of_matrix_le
-            ((DesignMatrixInvLeRegInv.of_reg_pos (A := A) (reg := reg) (x := x)
-              hreg_pos).apply n ω)
-            (centeredResponseVector A R ν x n ω)
-    _ = dotProduct (centeredResponseVector A R ν x n ω)
-          (centeredResponseVector A R ν x n ω) / reg :=
-        dotProduct_reg_smul_one_inv_mulVec (reg := reg) hreg_pos.ne'
-          (centeredResponseVector A R ν x n ω)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Coordinate-wise control of the centered response vector gives a conservative bound on the
-centered-noise inverse-design quadratic form. -/
-lemma centeredNoiseQuadraticForm_le_nat_mul_coord_sq_div_reg
-    (hreg_pos : 0 < reg) {B : ℝ} (hB_nonneg : 0 ≤ B)
-    (hcoord : ∀ i, |centeredResponseVector A R ν x n ω i| ≤ B) :
-    centeredNoiseQuadraticForm A R ν reg x n ω ≤ (d : ℝ) * B ^ 2 / reg := by
-  refine (centeredNoiseQuadraticForm_le_sqNorm_div_reg (A := A) (R := R)
-    (reg := reg) (x := x) (ν := ν) (n := n) (ω := ω) hreg_pos).trans ?_
-  exact div_le_div_of_nonneg_right
-    (dotProduct_self_le_nat_mul_sq_of_abs_le
-      (centeredResponseVector A R ν x n ω) hB_nonneg hcoord)
-    hreg_pos.le
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Nonnegative regularization makes the centered-noise inverse-design quadratic form
-nonnegative. -/
-lemma centeredNoiseQuadraticForm_nonneg_of_reg_nonneg
-    (hreg_nonneg : 0 ≤ reg) :
-    0 ≤ centeredNoiseQuadraticForm A R ν reg x n ω := by
-  simpa [centeredNoiseQuadraticForm] using
-    ((designMatrix_posSemidef (A := A) (reg := reg) (x := x) (n := n) (ω := ω)
-      hreg_nonneg).inv.dotProduct_mulVec_nonneg (centeredResponseVector A R ν x n ω))
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Nonnegative regularization makes the ridge-bias inverse-design quadratic form nonnegative. -/
-lemma regularizationBiasQuadraticForm_nonneg_of_reg_nonneg
-    (θ : Feature d) (hreg_nonneg : 0 ≤ reg) :
-    0 ≤ regularizationBiasQuadraticForm A reg x θ n ω := by
-  simpa [regularizationBiasQuadraticForm] using
-    ((designMatrix_posSemidef (A := A) (reg := reg) (x := x) (n := n) (ω := ω)
-      hreg_nonneg).inv.dotProduct_mulVec_nonneg (reg • θ))
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- The combined centered-noise-plus-bias quadratic form is bounded by the square of the sum of
-the separate noise and ridge-bias inverse-design norms.
-
-This is the deterministic triangle-inequality step in the textbook proof:
-`‖S_t - reg θ‖_{V_t⁻¹} ≤ ‖S_t‖_{V_t⁻¹} + ‖reg θ‖_{V_t⁻¹}`. -/
 lemma centeredNoiseBiasQuadraticForm_le_sqrt_add_sqrt_sq
     (θ : Feature d)
     (hreg_pos : 0 < reg) :
@@ -3900,20 +2458,7 @@ lemma linUCBPredictionErrorCauchySchwarz_of_reg_pos
         simp [V, width, widthQuadraticForm]
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Textbook-shaped parameter confidence event for finite-action LinUCB.
-
-This is the event that the true linear parameter `θ` lies in every positive-time confidence
-ellipsoid: `‖θHat_t - θ‖²_{V_t} ≤ β_{t+1}`. The later self-normalized concentration theorem should
-prove this event, or a theorem immediately implying it, with high probability for the textbook
-choice of `β`. -/
-def LinUCBParameterEllipsoidConfidenceEvent
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
-    (reg : ℝ) (β : ℕ → ℝ) (x : Fin K → Feature d)
-    (θ : Feature d) (ω : Ω) : Prop :=
-  ∀ t, t ≠ 0 → parameterErrorQuadraticForm A R reg x θ t ω ≤ β (t + 1)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Horizon-local parameter confidence event for finite-action LinUCB. -/
+/-- Horizon-local parameter ellipsoid confidence event for finite-action LinUCB. -/
 def LinUCBParameterEllipsoidConfidenceEventUpTo
     (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
     (reg : ℝ) (β : ℕ → ℝ) (x : Fin K → Feature d)
@@ -3921,29 +2466,7 @@ def LinUCBParameterEllipsoidConfidenceEventUpTo
   ∀ t, t ∈ range n → t ≠ 0 →
     parameterErrorQuadraticForm A R reg x θ t ω ≤ β (t + 1)
 
-omit [IsMarkovKernel ν] in
-/-- A global parameter ellipsoid confidence event implies its finite-horizon restriction. -/
-lemma LinUCBParameterEllipsoidConfidenceEvent.toUpTo
-    (θ : Feature d)
-    (h_ellipsoid : LinUCBParameterEllipsoidConfidenceEvent A R reg β x θ ω) :
-    LinUCBParameterEllipsoidConfidenceEventUpTo A R reg β x θ n ω := by
-  intro t _ht ht0
-  exact h_ellipsoid t ht0
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Textbook self-normalized confidence event stated at the centered-noise-plus-bias level.
-
-This is the event naturally exposed by the least-squares decomposition proved above:
-`‖θHat_t - θ‖²_{V_t}` is equal to `centeredNoiseBiasQuadraticForm`, so controlling this event is
-enough to put the true parameter in every LinUCB confidence ellipsoid. -/
-def LinUCBCenteredNoiseBiasConfidenceEvent
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
-    (reg : ℝ) (β : ℕ → ℝ) (x : Fin K → Feature d)
-    (ν : Kernel (Fin K) ℝ) (θ : Feature d) (ω : Ω) : Prop :=
-  ∀ t, t ≠ 0 → centeredNoiseBiasQuadraticForm A R ν reg x θ t ω ≤ β (t + 1)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Horizon-local centered-noise-plus-bias confidence event for finite-action LinUCB. -/
+/-- Horizon-local centered-noise-plus-ridge-bias confidence event. -/
 def LinUCBCenteredNoiseBiasConfidenceEventUpTo
     (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
     (reg : ℝ) (β : ℕ → ℝ) (x : Fin K → Feature d)
@@ -3952,24 +2475,7 @@ def LinUCBCenteredNoiseBiasConfidenceEventUpTo
     centeredNoiseBiasQuadraticForm A R ν reg x θ t ω ≤ β (t + 1)
 
 omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Horizon-local self-normalized event for only the random centered reward-feature vector.
-
-This separates the probabilistic martingale term from the deterministic ridge-bias term. A
-textbook self-normalized concentration theorem should prove this event for a concrete
-`noiseBudget`; the deterministic lemmas above then add the ridge-bias radius. -/
-def LinUCBCenteredNoiseConfidenceEventUpTo
-    (A : ℕ → Ω → Fin K) (R : ℕ → Ω → ℝ)
-    (reg : ℝ) (noiseBudget : ℕ → ℝ) (x : Fin K → Feature d)
-    (ν : Kernel (Fin K) ℝ) (n : ℕ) (ω : Ω) : Prop :=
-  ∀ t, t ∈ range n → t ≠ 0 →
-    centeredNoiseQuadraticForm A R ν reg x t ω ≤ noiseBudget (t + 1)
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Textbook determinant-ratio self-normalized noise bound.
-
-This is the scalar radius appearing before the ridge-bias term in the LinUCB confidence proof:
-`2 σ² log(√detRatio / δ)`. The future Gaussian-mixture theorem should prove that the centered
-noise quadratic form is bounded by this expression with high probability. -/
+/-- Textbook self-normalized noise bound as a function of the determinant ratio. -/
 noncomputable def textbookSelfNormalizedNoiseBound
     (σ2 : ℝ≥0) (δ : ℝ) (detRatio : ℝ) : ℝ :=
   2 * (σ2 : ℝ) * Real.log (√detRatio / δ)

@@ -5,7 +5,7 @@ Authors: OpenAI, Fawad Haider
 -/
 module
 
-public import LeanMachineLearning.Online.Bandit.Algorithms.LinUCB.Regret.LogDet
+public import LeanMachineLearning.Online.Bandit.Algorithms.LinUCB.Regret.Deterministic
 
 /-!
 # LinUCB Regret: Textbook Good-Event Bounds
@@ -144,18 +144,7 @@ lemma textbookRegretBonus_textbookLinUCBBeta_eq
   simp [textbookRegretBonus, textbookLinUCBRegretBonus,
     textbookLinUCBBeta_at_horizon d reg S2 σ2 L2 n δ]
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- At horizon zero, the deterministic textbook regret bound is deterministic. -/
-lemma regret_le_textbookRegretDet_bound_of_zero_horizon
-    (β : ℕ → ℝ) (L2 : ℝ) (hn : n = 0) :
-    regret ν A n ω ≤
-      (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n := by
-  subst n
-  simp [regret_eq_sum_gap, textbookRegretBonus]
-
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- In zero feature dimension under linear realizability, the deterministic textbook regret bound
-is deterministic. -/
+omit [IsMarkovKernel ν] in
 lemma regret_le_textbookRegretDet_bound_of_linear_dim_eq_zero [Nonempty (Fin K)]
     (β : ℕ → ℝ) (L2 : ℝ) {θ : Feature d} (hd : d = 0)
     (h_linear : LinearMeanModel ν x θ) :
@@ -170,26 +159,6 @@ lemma regret_le_textbookRegretDet_bound_of_linear_dim_eq_zero [Nonempty (Fin K)]
     exact mul_nonneg (by norm_num) (mul_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
   linarith
 
-omit [IsMarkovKernel ν] [IsProbabilityMeasure P] in
-/-- Under linear realizability, a nonpositive feature-norm bound makes the deterministic textbook
-regret bound deterministic. -/
-lemma regret_le_textbookRegretDet_bound_of_featureSqNormBound_nonpos [Nonempty (Fin K)]
-    (β : ℕ → ℝ) (L2 : ℝ) {θ : Feature d}
-    (hL2 : FeatureSqNormBound x L2) (hL2_nonpos : L2 ≤ 0)
-    (h_linear : LinearMeanModel ν x θ) :
-    regret ν A n ω ≤
-      (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n := by
-  rw [regret_eq_zero_of_linear_featureSqNormBound_nonpos (A := A) (ν := ν)
-    (x := x) (n := n) (ω := ω) hL2 hL2_nonpos h_linear]
-  have hinit_nonneg : 0 ≤ if n = 0 then 0 else (2 : ℝ) := by
-    by_cases hn : n = 0 <;> simp [hn]
-  have hbonus_nonneg : 0 ≤ textbookRegretBonus (d := d) reg β L2 n := by
-    unfold textbookRegretBonus
-    exact mul_nonneg (by norm_num) (mul_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
-  linarith
-
-/-- Horizon-local good-event finite-action LinUCB regret theorem with the random initial gap
-replaced by the deterministic `≤ 2` bound implied by `MeanRewardBound ν (-1) 1`. -/
 lemma regret_ae_imp_le_textbook_finite_action_deterministic_bound_upTo
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
@@ -212,65 +181,6 @@ lemma regret_ae_imp_le_textbook_finite_action_deterministic_bound_upTo
       (2 * (√((n : ℝ) * β n) *
         √(2 * (d : ℝ) * Real.log (1 + (n : ℝ) * L2 / (reg * (d : ℝ))))))
 
-/-- Good-event finite-action LinUCB regret theorem with the random initial gap replaced by the
-deterministic `≤ 2` bound implied by `MeanRewardBound ν (-1) 1`. -/
-lemma regret_ae_imp_le_textbook_finite_action_deterministic_bound
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    (h_mean_bound : MeanRewardBound (K := K) ν (-1) 1)
-    (hβ_schedule : BetaSchedule β)
-    (hreg_pos : 0 < reg)
-    (L2 : ℝ) (hL2 : FeatureSqNormBound x L2) :
-    ∀ᵐ ω ∂P,
-      LinUCBConfidenceEvent A R reg β x ν ω →
-        regret ν A n ω ≤
-          (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n := by
-  filter_upwards [regret_ae_imp_le_textbook_finite_action_deterministic_bound_upTo (A := A)
-    (R := R)
-    (reg := reg) (β := β) (x := x) (ν := ν) (n := n) h h_mean_bound hβ_schedule
-    hreg_pos L2 hL2] with ω h_regret h_confω
-  exact h_regret (LinUCBConfidenceEvent.toUpTo (A := A) (R := R) (reg := reg)
-    (β := β) (x := x) (ν := ν) (n := n) (ω := ω) h_confω)
-
-/-- Almost-sure corollary of
-`regret_ae_imp_le_textbook_finite_action_deterministic_bound` when the confidence event is known
-to hold almost surely. -/
-lemma regret_ae_le_textbook_finite_action_deterministic_bound
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    (h_conf : ∀ᵐ ω ∂P, LinUCBConfidenceEvent A R reg β x ν ω)
-    (h_mean_bound : MeanRewardBound (K := K) ν (-1) 1)
-    (hβ_schedule : BetaSchedule β)
-    (hreg_pos : 0 < reg)
-    (L2 : ℝ) (hL2 : FeatureSqNormBound x L2) :
-    ∀ᵐ ω ∂P,
-      regret ν A n ω ≤
-        (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n := by
-  filter_upwards [regret_ae_imp_le_textbook_finite_action_deterministic_bound
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n) h
-    h_mean_bound hβ_schedule hreg_pos L2 hL2, h_conf] with ω h_regret h_confω
-  exact h_regret h_confω
-
-/-- Almost-sure corollary of the horizon-local deterministic textbook regret theorem. -/
-lemma regret_ae_le_textbook_finite_action_deterministic_bound_upTo
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    (h_conf : ∀ᵐ ω ∂P, LinUCBConfidenceEventUpTo A R reg β x ν n ω)
-    (h_mean_bound : MeanRewardBound (K := K) ν (-1) 1)
-    (hβ_schedule : BetaSchedule β)
-    (hreg_pos : 0 < reg)
-    (L2 : ℝ) (hL2 : FeatureSqNormBound x L2) :
-    ∀ᵐ ω ∂P,
-      regret ν A n ω ≤
-        (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n := by
-  filter_upwards [regret_ae_imp_le_textbook_finite_action_deterministic_bound_upTo
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n) h
-    h_mean_bound hβ_schedule hreg_pos L2 hL2, h_conf] with ω h_regret h_confω
-  exact h_regret h_confω
-
-/-- The horizon-local confidence event is almost surely contained in the deterministic textbook
-regret-bound event. This is the finite-horizon probability bridge to combine with a
-self-normalized confidence theorem. -/
 lemma probReal_confidenceEventUpTo_le_textbook_regret_bound_deterministic
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
@@ -332,37 +242,7 @@ lemma regret_bound_ge_of_confidenceEventUpTo_ge
     h_mean_bound hβ_schedule hreg_pos L2 hL2 h_conf_prob
 -- ANCHOR_END: LinUCB.regret_bound_ge
 
-/-- Short exported high-probability endpoint for linear-bandit users.
-
-This is `regret_bound_ge_of_confidenceEventUpTo_ge` with `MeanRewardBound ν (-1) 1` derived from
-linear realizability, bounded features, bounded parameter norm, and the normalization
-`L2 * S2 ≤ 1`. -/
-lemma regret_bound_ge_of_confidenceEventUpTo_ge_of_linear_sq_norm_bounds
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    (hβ_schedule : BetaSchedule β)
-    (hreg_pos : 0 < reg)
-    (L2 S2 : ℝ)
-    (hL2 : FeatureSqNormBound x L2)
-    (θ : Feature d)
-    (h_linear : LinearMeanModel ν x θ)
-    (hθ : ParameterSqNormBound θ S2)
-    (hLS_le_one : L2 * S2 ≤ 1)
-    {δ : ℝ}
-    (h_conf_prob :
-      1 - δ ≤ P.real {ω | LinUCBConfidenceEventUpTo A R reg β x ν n ω}) :
-    1 - δ ≤
-      P.real {ω |
-        regret ν A n ω ≤
-          (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n} := by
-  exact regret_bound_ge_of_confidenceEventUpTo_ge
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n) h
-    (meanRewardBound_neg_one_one_of_linear_sq_norm_bounds
-      (ν := ν) (x := x) (θ := θ) h_linear hL2 hθ hLS_le_one)
-    hβ_schedule hreg_pos L2 hL2 h_conf_prob
-
-/-- High-probability deterministic LinUCB regret bound, consuming the finite-horizon
-self-normalized prediction-error event directly. -/
+/-- High-probability textbook regret bound from the self-normalized prediction-confidence event. -/
 lemma probReal_textbook_regret_bound_deterministic_ge_of_selfNormalizedConfidenceEventUpTo_ge
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
@@ -383,34 +263,6 @@ lemma probReal_textbook_regret_bound_deterministic_ge_of_selfNormalizedConfidenc
       (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
       (P := P) h_self_prob)
 
-/-- High-probability deterministic LinUCB regret bound, consuming the horizon-local textbook
-parameter ellipsoid event directly. -/
-lemma probReal_textbook_regret_bound_deterministic_ge_of_parameterEllipsoidConfidenceEventUpTo_ge
-    [Nonempty (Fin K)]
-    (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
-    (h_mean_bound : MeanRewardBound (K := K) ν (-1) 1)
-    (hβ_schedule : BetaSchedule β)
-    (hreg_pos : 0 < reg)
-    (L2 : ℝ) (hL2 : FeatureSqNormBound x L2)
-    (θ : Feature d)
-    (h_linear : LinearMeanModel ν x θ)
-    {δ : ℝ}
-    (h_ellipsoid_prob :
-      1 - δ ≤
-        P.real {ω | LinUCBParameterEllipsoidConfidenceEventUpTo A R reg β x θ n ω}) :
-    1 - δ ≤
-      P.real {ω |
-        regret ν A n ω ≤
-          (if n = 0 then 0 else 2) + textbookRegretBonus (d := d) reg β L2 n} := by
-  exact probReal_textbook_regret_bound_deterministic_ge_of_selfNormalizedConfidenceEventUpTo_ge
-    (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n) h
-    h_mean_bound hβ_schedule hreg_pos L2 hL2
-    (probReal_selfNormalizedConfidenceEventUpTo_ge_of_parameterEllipsoidConfidenceEventUpTo_ge
-      (A := A) (R := R) (reg := reg) (β := β) (x := x) (ν := ν) (n := n)
-      (P := P) θ h_linear hreg_pos h_ellipsoid_prob)
-
-/-- High-probability deterministic LinUCB regret bound, consuming the horizon-local
-centered-noise-plus-bias event exposed by the least-squares decomposition. -/
 lemma probReal_textbook_regret_bound_deterministic_ge_of_centeredNoiseBiasConfidenceEventUpTo_ge
     [Nonempty (Fin K)]
     (h : IsAlgEnvSeq A R (linUCBAlgorithm hK reg β x) (stationaryEnv ν) P)
